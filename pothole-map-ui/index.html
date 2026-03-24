@@ -1,578 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PAVE — Live Detection</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-<style>
-  :root {
-    --bg: #0a0c10;
-    --surface: #111318;
-    --surface2: #181c24;
-    --border: #1e2430;
-    --accent: #f0a500;
-    --text: #e8eaf0;
-    --muted: #6b7280;
-    --danger: #ff3b3b;
-    --safe: #00e676;
-    --font-head: 'Rajdhani', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-head);
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  #topbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 18px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-    z-index: 100;
-  }
-
-  #logo {
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: var(--accent);
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-  #logo span { color: var(--text); }
-
-  #status-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 4px 12px;
-    font-size: 12px;
-    font-family: var(--font-mono);
-    letter-spacing: 1px;
-    color: var(--safe);
-  }
-  #status-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--safe);
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,230,118,0.5); }
-    50% { opacity:.7; box-shadow: 0 0 0 5px rgba(0,230,118,0); }
-  }
-
-  .spacer { flex: 1; }
-
-  #btn-potholes {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: transparent;
-    border: 1.5px solid var(--border);
-    color: var(--muted);
-    font-family: var(--font-head);
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    padding: 7px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all .2s;
-  }
-  #btn-potholes:hover { border-color: var(--accent); color: var(--accent); }
-  #btn-potholes.has-potholes {
-    border-color: var(--danger);
-    color: var(--danger);
-    animation: borderPulse 2s infinite;
-  }
-  @keyframes borderPulse {
-    0%,100% { box-shadow: 0 0 0 0 rgba(255,59,59,0.4); }
-    50% { box-shadow: 0 0 0 6px rgba(255,59,59,0); }
-  }
-  #btn-potholes .badge {
-    background: var(--danger);
-    color: #fff;
-    font-size: 10px;
-    font-family: var(--font-mono);
-    border-radius: 10px;
-    padding: 1px 6px;
-    min-width: 18px;
-    text-align: center;
-    display: none;
-  }
-  #btn-potholes.has-potholes .badge { display: inline-block; }
-
-  #btn-simulate {
-    background: var(--accent);
-    color: #000;
-    border: none;
-    font-family: var(--font-head);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    padding: 7px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all .15s;
-  }
-  #btn-simulate:hover { background: #ffb800; }
-  #btn-simulate:active { transform: scale(.97); }
-
-  #main { display: flex; flex: 1; overflow: hidden; }
-
-  #map { flex: 1; position: relative; }
-  #google-map { width: 100%; height: 100%; }
-
-  #sidebar {
-    width: 280px;
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-
-  #sidebar-header {
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid var(--border);
-    font-size: 11px;
-    font-family: var(--font-mono);
-    letter-spacing: 2px;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  #detection-card {
-    margin: 12px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px;
-  }
-  #detection-label {
-    font-size: 11px;
-    font-family: var(--font-mono);
-    letter-spacing: 2px;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-  #detection-status {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    transition: color .3s;
-  }
-  #detection-status.safe { color: var(--safe); }
-  #detection-status.danger { color: var(--danger); }
-  #detection-sub {
-    font-size: 12px;
-    font-family: var(--font-mono);
-    color: var(--muted);
-    margin-top: 4px;
-  }
-
-  #list-section {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 12px 12px;
-  }
-  #list-section::-webkit-scrollbar { width: 4px; }
-  #list-section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  .list-title {
-    font-size: 11px;
-    font-family: var(--font-mono);
-    letter-spacing: 2px;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin: 12px 0 8px;
-  }
-
-  .pothole-item {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--danger);
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 6px;
-    cursor: pointer;
-    transition: background .15s;
-  }
-  .pothole-item:hover { background: #1a1f2a; }
-  .pothole-item .ph-id { font-size: 11px; font-family: var(--font-mono); color: var(--muted); }
-  .pothole-item .ph-loc { font-size: 14px; font-weight: 600; color: var(--text); margin: 2px 0; }
-  .pothole-item .ph-time { font-size: 11px; font-family: var(--font-mono); color: var(--muted); }
-
-  /* Panel */
-  #pothole-panel {
-    position: fixed;
-    inset: 0;
-    background: rgba(10,12,16,.97);
-    z-index: 200;
-    display: none;
-    flex-direction: column;
-  }
-  #pothole-panel.open { display: flex; }
-
-  #panel-topbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  #panel-title { font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
-  #panel-count {
-    font-size: 12px;
-    font-family: var(--font-mono);
-    color: var(--danger);
-    background: rgba(255,59,59,.1);
-    border: 1px solid rgba(255,59,59,.3);
-    border-radius: 4px;
-    padding: 3px 10px;
-  }
-  #btn-close-panel {
-    margin-left: auto;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    padding: 5px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all .2s;
-  }
-  #btn-close-panel:hover { border-color: var(--text); color: var(--text); }
-
-  #panel-body { display: flex; flex: 1; overflow: hidden; }
-
-  #panel-list {
-    width: 300px;
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
-    padding: 12px;
-    flex-shrink: 0;
-  }
-  #panel-list::-webkit-scrollbar { width: 4px; }
-  #panel-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  #panel-map { flex: 1; }
-  #panel-google-map { width: 100%; height: 100%; }
-
-  .panel-ph-item {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--danger);
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: background .15s;
-  }
-  .panel-ph-item:hover, .panel-ph-item.active { background: #1a1f2a; }
-  .panel-ph-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
-  .panel-ph-meta { font-size: 11px; font-family: var(--font-mono); color: var(--muted); }
-
-  #toast {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%) translateY(80px);
-    background: var(--surface2);
-    border: 1px solid var(--danger);
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 13px;
-    padding: 10px 20px;
-    border-radius: 8px;
-    z-index: 999;
-    transition: transform .3s cubic-bezier(.34,1.56,.64,1);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    pointer-events: none;
-  }
-  #toast.show { transform: translateX(-50%) translateY(0); }
-  #toast .t-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PAVE — Live Detection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
-<div id="topbar">
-  <div id="logo">PAVE<span></span></div>
-  <div id="status-pill">
-    <div id="status-dot"></div>
-    <span>MONITORING</span>
-  </div>
-  <div class="spacer"></div>
-  <button id="btn-potholes" onclick="openPotholePanel()">
-    ⚠ Potholes Detected
-    <span class="badge" id="badge-count">0</span>
-  </button>
-  <button id="btn-simulate" onclick="simulateDetection()">+ Simulate Detection</button>
-</div>
-
-<div id="main">
-  <div id="map"><div id="google-map"></div></div>
-  <div id="sidebar">
-    <div id="sidebar-header">// Live Feed</div>
-    <div id="detection-card">
-      <div id="detection-label">POTHOLE DETECTED</div>
-      <div id="detection-status" class="safe">FALSE</div>
-      <div id="detection-sub">No pothole in current zone</div>
+  <!-- ── TOP BAR ── -->
+  <div id="topbar">
+    <div id="logo">PAVE<span></span></div>
+    <div id="status-pill">
+      <div id="status-dot"></div>
+      <span>MONITORING</span>
     </div>
-    <div id="list-section">
-      <div class="list-title">// Recent Events</div>
-      <div id="live-list">
-        <div style="font-size:12px;font-family:var(--font-mono);color:var(--muted);padding:10px 0;">Awaiting detection events…</div>
+    <div id="gps-pill">
+      <div id="gps-dot"></div>
+      <span id="gps-label">GPS OFF</span>
+    </div>
+    <div class="spacer"></div>
+    <button id="btn-potholes" onclick="openPotholePanel()">
+      ⚠ Potholes Detected
+      <span class="badge" id="badge-count">0</span>
+    </button>
+    <button id="btn-simulate" onclick="simulateDetection()">+ Simulate Detection</button>
+  </div>
+
+  <!-- ── MAIN ── -->
+  <div id="main">
+
+    <!-- Map -->
+    <div id="map">
+      <div id="google-map"></div>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div id="sidebar-header">// Live Feed</div>
+
+      <!-- Boolean detection status -->
+      <div id="detection-card">
+        <div id="detection-label">POTHOLE DETECTED</div>
+        <div id="detection-status" class="safe">FALSE</div>
+        <div id="detection-sub">No pothole in current zone</div>
+      </div>
+
+      <!-- GPS coordinates -->
+      <div id="gps-card">
+        <div id="gps-card-label">// YOUR LOCATION</div>
+        <div id="gps-coords">Waiting for GPS…</div>
+      </div>
+
+      <!-- Proximity alert -->
+      <div id="proximity-card">
+        <div id="proximity-label">⚠ POTHOLE NEARBY</div>
+        <div id="proximity-dist">No potholes nearby</div>
+        <div id="proximity-name">Radius: 100m</div>
+      </div>
+
+      <!-- Live event feed -->
+      <div id="list-section">
+        <div class="list-title">// Recent Events</div>
+        <div id="live-list">
+          <div style="font-size:12px;font-family:var(--font-mono);color:var(--muted);padding:10px 0;">
+            Awaiting detection events…
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── POTHOLE HISTORY PANEL ── -->
+  <div id="pothole-panel">
+    <div id="panel-topbar">
+      <div id="panel-title">⚠ All Detected Potholes</div>
+      <span id="panel-count">0 potholes</span>
+      <button id="btn-close-panel" onclick="closePotholePanel()">✕ Close</button>
+    </div>
+    <div id="panel-body">
+      <div id="panel-list">
+        <div id="panel-ph-list"></div>
+      </div>
+      <div id="panel-map">
+        <div id="panel-google-map"></div>
       </div>
     </div>
   </div>
-</div>
 
-<div id="pothole-panel">
-  <div id="panel-topbar">
-    <div id="panel-title">⚠ All Detected Potholes</div>
-    <span id="panel-count">0 potholes</span>
-    <button id="btn-close-panel" onclick="closePotholePanel()">✕ Close</button>
+  <!-- ── TOAST NOTIFICATION ── -->
+  <div id="toast">
+    <div class="t-dot"></div>
+    <span id="toast-msg"></span>
   </div>
-  <div id="panel-body">
-    <div id="panel-list"><div id="panel-ph-list"></div></div>
-    <div id="panel-map"><div id="panel-google-map"></div></div>
-  </div>
-</div>
 
-<div id="toast">
-  <div class="t-dot"></div>
-  <span id="toast-msg"></span>
-</div>
+  <script src="app.js"></script>
 
-<script>
-const GOOGLE_API_KEY = "AIzaSyAm6wJnu_CrdP7cPn6dQu26SYglZ71gxTU"; 
-
-const MAP_CENTER = { lat: 23.2599, lng: 77.4126 };
-let potholes = [], mainMap = null, panelMap = null;
-let mainMarkers = [], panelMarkers = [];
-let toastTimer = null;
-
-function initMaps() {
-  const style = [
-    { elementType: 'geometry', stylers: [{ color: '#1a1f2e' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0c10' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a3040' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3a4255' }] },
-    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1117' }] },
-    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
-  ];
-  const opts = { zoom: 14, center: MAP_CENTER, styles: style, mapTypeControl: false, streetViewControl: false, fullscreenControl: false };
-  mainMap = new google.maps.Map(document.getElementById('google-map'), opts);
-  panelMap = new google.maps.Map(document.getElementById('panel-google-map'), { ...opts, zoom: 13 });
-}
-
-function addPothole(lat, lng, locationName, detectedBy) {
-  const id = `PH-${String(potholes.length + 1).padStart(3,'0')}`;
-  const ts = new Date();
-  const ph = { id, lat, lng, locationName, detectedBy, timestamp: ts };
-  potholes.push(ph);
-  if (mainMap) placeRedDot(mainMap, mainMarkers, ph, true);
-  updateStatus(ph);
-  addToList(ph);
-  updateBadge();
-  showToast(`${id} — ${locationName}`);
-}
-
-function placeRedDot(map, arr, ph, animate) {
-  const marker = new google.maps.Marker({
-    position: { lat: ph.lat, lng: ph.lng },
-    map,
-    title: ph.id,
-    animation: animate ? google.maps.Animation.DROP : null,
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      fillColor: '#ff3b3b',
-      fillOpacity: 1,
-      strokeColor: '#ffffff',
-      strokeWeight: 2,
-      scale: 10,
-    },
-  });
-  const iw = new google.maps.InfoWindow({
-    content: `<div style="font-family:'JetBrains Mono',monospace;background:#111318;color:#e8eaf0;padding:10px;border-radius:6px;font-size:12px;">
-      <b style="color:#ff3b3b;">${ph.id}</b><br>${ph.locationName}<br>
-      <span style="color:#6b7280;">Model: ${ph.detectedBy}<br>${formatTime(ph.timestamp)}<br>${ph.lat.toFixed(5)}, ${ph.lng.toFixed(5)}</span>
-    </div>`,
-  });
-  marker.addListener('click', () => iw.open(map, marker));
-  arr.push({ marker, ph, iw });
-}
-
-function updateStatus(ph) {
-  document.getElementById('detection-status').textContent = 'TRUE';
-  document.getElementById('detection-status').className = 'danger';
-  document.getElementById('detection-sub').textContent = `${ph.id} · ${ph.locationName}`;
-  clearTimeout(window._rst);
-  window._rst = setTimeout(() => {
-    document.getElementById('detection-status').textContent = 'FALSE';
-    document.getElementById('detection-status').className = 'safe';
-    document.getElementById('detection-sub').textContent = 'No pothole in current zone';
-  }, 4000);
-}
-
-function addToList(ph) {
-  const list = document.getElementById('live-list');
-  const empty = list.querySelector('div[style]');
-  if (empty) empty.remove();
-  const item = document.createElement('div');
-  item.className = 'pothole-item';
-  item.innerHTML = `<div class="ph-id">${ph.id} · ${ph.detectedBy}</div><div class="ph-loc">${ph.locationName}</div><div class="ph-time">${formatTime(ph.timestamp)}</div>`;
-  item.onclick = () => {
-    if (!mainMap) return;
-    mainMap.panTo({ lat: ph.lat, lng: ph.lng });
-    mainMap.setZoom(16);
-    const e = mainMarkers.find(m => m.ph.id === ph.id);
-    if (e) e.iw.open(mainMap, e.marker);
-  };
-  list.insertBefore(item, list.firstChild);
-  while (list.children.length > 10) list.removeChild(list.lastChild);
-}
-
-function updateBadge() {
-  document.getElementById('badge-count').textContent = potholes.length;
-  document.getElementById('btn-potholes').classList.toggle('has-potholes', potholes.length > 0);
-}
-
-function showToast(msg) {
-  document.getElementById('toast-msg').textContent = `Pothole: ${msg}`;
-  document.getElementById('toast').classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => document.getElementById('toast').classList.remove('show'), 3500);
-}
-
-function openPotholePanel() {
-  document.getElementById('pothole-panel').classList.add('open');
-  document.getElementById('panel-count').textContent = `${potholes.length} pothole${potholes.length !== 1 ? 's' : ''}`;
-
-  const list = document.getElementById('panel-ph-list');
-  list.innerHTML = potholes.length === 0
-    ? '<div style="font-size:12px;font-family:var(--font-mono);color:var(--muted);padding:10px 0;">No potholes detected yet.</div>'
-    : '';
-
-  [...potholes].reverse().forEach(ph => {
-    const item = document.createElement('div');
-    item.className = 'panel-ph-item';
-    item.innerHTML = `<div class="panel-ph-name">${ph.locationName}</div><div class="panel-ph-meta">${ph.id} · ${ph.detectedBy}</div><div class="panel-ph-meta">${ph.lat.toFixed(5)}, ${ph.lng.toFixed(5)}</div>`;
-    item.onclick = () => {
-      document.querySelectorAll('.panel-ph-item').forEach(el => el.classList.remove('active'));
-      item.classList.add('active');
-      if (!panelMap) return;
-      panelMap.panTo({ lat: ph.lat, lng: ph.lng });
-      panelMap.setZoom(16);
-      const e = panelMarkers.find(m => m.ph.id === ph.id);
-      if (e) e.iw.open(panelMap, e.marker);
-    };
-    list.appendChild(item);
-  });
-
-  setTimeout(() => {
-    if (!panelMap) return;
-    google.maps.event.trigger(panelMap, 'resize');
-    panelMarkers.forEach(m => m.marker.setMap(null));
-    panelMarkers = [];
-    potholes.forEach(ph => placeRedDot(panelMap, panelMarkers, ph, false));
-    if (potholes.length > 0) {
-      const b = new google.maps.LatLngBounds();
-      potholes.forEach(ph => b.extend({ lat: ph.lat, lng: ph.lng }));
-      panelMap.fitBounds(b, { top: 50, right: 50, bottom: 50, left: 50 });
-    }
-  }, 150);
-}
-
-function closePotholePanel() {
-  document.getElementById('pothole-panel').classList.remove('open');
-}
-
-const ROAD_LOCATIONS = [
-  { lat: 23.2599, lng: 77.4126, name: "DB City Mall Road" },
-  { lat: 23.2555, lng: 77.4022, name: "Arera Colony Road" },
-  { lat: 23.2710, lng: 77.4300, name: "Habibganj Railway Rd" },
-  { lat: 23.2330, lng: 77.4380, name: "Hoshangabad Road" },
-  { lat: 23.2645, lng: 77.3965, name: "New Market Junction" },
-  { lat: 23.2480, lng: 77.4520, name: "Kolar Road" },
-  { lat: 23.2790, lng: 77.4180, name: "Berasia Road" },
-  { lat: 23.2200, lng: 77.4250, name: "Ashoka Garden Rd" },
-  { lat: 23.2620, lng: 77.4610, name: "Raisen Road" },
-  { lat: 23.2420, lng: 77.3800, name: "Shyamla Hills Road" },
-  { lat: 23.2860, lng: 77.4050, name: "Vidisha Road" },
-  { lat: 23.2180, lng: 77.4050, name: "Gulmohar Colony Rd" },
-  { lat: 23.2530, lng: 77.4650, name: "Awadhpuri Road" },
-  { lat: 23.2700, lng: 77.3880, name: "Lalghati Road" },
-  { lat: 23.2380, lng: 77.4170, name: "MP Nagar Main Road" },
-];
-const MODELS = ['Image Model', 'Math Model', 'Both'];
-let usedLocs = new Set();
-
-function simulateDetection() {
-  if (usedLocs.size >= ROAD_LOCATIONS.length) usedLocs.clear();
-  let loc;
-  do { loc = ROAD_LOCATIONS[Math.floor(Math.random() * ROAD_LOCATIONS.length)]; }
-  while (usedLocs.has(loc.name));
-  usedLocs.add(loc.name);
-
-  const lat = loc.lat + (Math.random() - 0.5) * 0.001;
-  const lng = loc.lng + (Math.random() - 0.5) * 0.001;
-  addPothole(lat, lng, loc.name, MODELS[Math.floor(Math.random() * MODELS.length)]);
-  if (mainMap) { mainMap.panTo({ lat, lng }); mainMap.setZoom(15); }
-}
-
-window.PotholeGuard = {
-  reportDetection: (lat, lng, locationName = 'Road', model = 'Image Model') => addPothole(lat, lng, locationName, model),
-  getPotholes: () => potholes,
-  isDetected: () => potholes.length > 0,
-};
-
-function formatTime(d) {
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-(function() {
-  if (GOOGLE_API_KEY === "YOUR_GOOGLE_MAPS_API_KEY") {
-    ['google-map','panel-google-map'].forEach(id => {
-      const el = document.getElementById(id);
-      el.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#13181f;';
-      el.innerHTML = `<div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#2a3040;text-align:center;letter-spacing:1px;">SET YOUR GOOGLE MAPS API KEY</div>`;
-    });
-    return;
-  }
-  const s = document.createElement('script');
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initMaps`;
-  s.async = true; s.defer = true;
-  document.head.appendChild(s);
-})();
-</script>
 </body>
 </html>
