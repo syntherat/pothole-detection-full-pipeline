@@ -1,113 +1,132 @@
 # PAVE Map UI
 
-A real-time pothole detection dashboard built for in-car use. This module handles the Google Maps interface layer of the PotholeGuard system — displaying live pothole detections as red markers on the map, maintaining a detection log, and providing a full pothole history panel.
-
-This UI connects to two detection models running in the backend:
-- **Image Model** — detects potholes using computer vision on road-facing camera feed
-- **Math Model** — detects potholes using accelerometer data and vehicle motion analysis
+Real-time pothole detection dashboard for in-car use. Plots detected potholes as red dots on a live Google Maps interface, tracks your GPS location, and alerts you when a pothole is within 100m of your vehicle.
 
 ---
 
 ## Folder Structure
 
 ```
-potholE-map-ui/
-└── index.html        # Single-file app — all HTML, CSS, and JS included
+pothole-map-ui/
+├── index.html    — HTML structure and layout
+├── styles.css    — All styling, theme, and animations
+└── app.js        — All logic: maps, GPS, proximity, detection
 ```
 
 ---
 
-## Features
+## File Breakdown
 
-- **Live Boolean Detection Card** — displays TRUE/FALSE in real time when a pothole is detected, resets automatically after 4 seconds
-- **Red Dot Markers on Google Maps** — every detected pothole is plotted as a red circle on the map at its exact GPS coordinates
-- **Clickable Markers** — click any dot to see pothole ID, location name, detection model, timestamp, and coordinates
-- **Potholes Detected Button** — top bar button that turns red and pulses when potholes exist; shows a live count badge
-- **Full Pothole History Panel** — opens a split-screen view with a scrollable list of all potholes on the left and a full map with all dots on the right
-- **Live Feed Sidebar** — shows the last 10 detection events with location and timestamp
-- **Simulate Detection** — test button that drops random potholes on real Bhopal road coordinates for demo/testing purposes
+### `index.html`
+The entry point of the app. Contains only the HTML skeleton — no inline CSS or JavaScript. Links to `styles.css` and `app.js`.
+
+**What's inside:**
+- Top bar with logo, monitoring status pill, GPS status pill, "Potholes Detected" button, and Simulate button
+- Main layout with the Google Maps container on the left and the sidebar on the right
+- Sidebar with four sections: boolean detection card, GPS coordinates card, proximity alert card, and live event feed
+- Pothole history panel overlay (hidden by default, opens when "Potholes Detected" is clicked) with a split list + map view
+- Toast notification element at the bottom
+
+**To open the app:** open `index.html` in a browser or serve it through a local server.
+
+---
+
+### `styles.css`
+All visual styling for the app. Uses CSS custom properties (variables) defined in `:root` so the entire theme can be changed from one place.
+
+**Theme variables:**
+```css
+--bg          /* main background       #0a0c10 */
+--surface     /* card/bar background   #111318 */
+--surface2    /* inner card background #181c24 */
+--border      /* border color          #1e2430 */
+--accent      /* amber highlight       #f0a500 */
+--danger      /* red alert color       #ff3b3b */
+--safe        /* green safe color      #00e676 */
+--font-head   /* Rajdhani              display font  */
+--font-mono   /* JetBrains Mono        data/code font */
+```
+
+**Key sections in the file:**
+| Section | What it styles |
+|---|---|
+| `#topbar` | Top navigation bar and all its pills and buttons |
+| `#sidebar` | Right panel container |
+| `#detection-card` | Boolean TRUE/FALSE status card |
+| `#gps-card` | Live GPS coordinates display |
+| `#proximity-card` | Pothole nearby alert — pulses red when active |
+| `.pothole-item` | Individual entries in the live event feed |
+| `#pothole-panel` | Full-screen history overlay |
+| `.panel-ph-item` | Individual entries in the history panel list |
+| `#toast` | Slide-up notification at the bottom of the screen |
+
+**Animations defined:**
+- `pulse` — green monitoring dot
+- `gpsPulse` — blue GPS dot when active
+- `borderPulse` — red border on "Potholes Detected" button
+- `proximityPulse` — red glow on proximity card when a pothole is nearby
+
+---
+
+### `app.js`
+All application logic. This is the only file you need to edit to configure the app.
+
+**Configuration (top of file):**
+```js
+const GOOGLE_API_KEY    = "YOUR_GOOGLE_MAPS_API_KEY"; // ← replace this
+const MAP_CENTER        = { lat: 23.2599, lng: 77.4126 }; // ← default map center (Bhopal)
+const PROXIMITY_RADIUS_M = 100; // ← alert radius in meters
+```
+
+**Functions overview:**
+
+| Function | Description |
+|---|---|
+| `initMaps()` | Initializes both the main map and the panel map with dark styling. Called automatically by Google Maps API after load |
+| `startLocationTracking()` | Starts `watchPosition` to continuously track the device GPS |
+| `updateCarMarker(lat, lng, heading)` | Places or moves the blue car icon on the main map. Rotates the icon based on heading direction |
+| `updateGPSDisplay(lat, lng, accuracy)` | Updates the GPS card in the sidebar and triggers proximity check |
+| `checkProximity(userLat, userLng)` | Runs the Haversine formula against all stored potholes. Activates the proximity card and fires a toast if a pothole is within `PROXIMITY_RADIUS_M` |
+| `getDistanceMeters(lat1, lng1, lat2, lng2)` | Haversine formula — returns accurate real-world distance in meters between two coordinates |
+| `addPothole(lat, lng, locationName, detectedBy)` | Core function — adds a pothole to the data store, places a red dot on the map, updates all UI elements |
+| `placeRedDot(map, arr, ph, animate)` | Places a red circle marker on a given map with a clickable info window |
+| `updateStatus(ph)` | Sets the boolean card to TRUE (red) and resets to FALSE after 4 seconds |
+| `addToList(ph)` | Prepends a new entry to the live event feed in the sidebar, keeps max 10 items |
+| `updateBadge()` | Updates the count badge on the "Potholes Detected" button |
+| `showToast(msg)` | Shows the slide-up toast notification for 3.5 seconds |
+| `openPotholePanel()` | Opens the full-screen history panel and re-renders all markers on the panel map |
+| `closePotholePanel()` | Closes the history panel |
+| `simulateDetection()` | Drops a random pothole within ~300m of your current GPS position for testing |
+| `getUserPosition()` | Returns current car marker position, or falls back to `MAP_CENTER` if GPS hasn't locked yet |
 
 ---
 
 ## Setup
 
-**1. Get a Google Maps API Key**
+**1. Enable Maps JavaScript API**
 
-- Go to [console.cloud.google.com](https://console.cloud.google.com)
-- Create a project and enable the **Maps JavaScript API**
-- Go to APIs & Services → Credentials → Create API Key
-- Make sure billing is enabled on your project (required by Google even on free tier)
+Go to [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services → Library → enable **Maps JavaScript API**. Make sure billing is active on your project.
 
 **2. Add your API key**
 
-Open `index.html` and find this line near the bottom:
-
-```js
-const GOOGLE_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
-```
-
-Replace it with your actual key:
-
+Open `app.js` and replace line 3:
 ```js
 const GOOGLE_API_KEY = "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 ```
 
-**3. Open the file**
+**3. Restrict your key (for public repos)**
 
-Open `index.html` directly in a browser, or serve it through your existing project server.
-
----
-
-## Connecting Your Detection Models
-
-The UI exposes a global API so your backend models can push detections directly into the map:
-
-```js
-// Report a pothole from your model
-window.PotholeGuard.reportDetection(lat, lng, locationName, model);
-
-// Examples:
-window.PotholeGuard.reportDetection(23.2599, 77.4126, "DB City Mall Road", "Image Model");
-window.PotholeGuard.reportDetection(23.2555, 77.4022, "Arera Colony Road", "Math Model");
-window.PotholeGuard.reportDetection(23.2710, 77.4300, "Habibganj Railway Rd", "Both");
-
-// Check current detection state
-window.PotholeGuard.isDetected();   // → true / false
-window.PotholeGuard.getPotholes();  // → array of all logged potholes
+Go to Credentials → your key → HTTP Referrers → add:
 ```
-
-**Parameters:**
-
-| Parameter | Type | Description |
-|---|---|---|
-| `lat` | number | Latitude of detected pothole |
-| `lng` | number | Longitude of detected pothole |
-| `locationName` | string | Human-readable road/area name |
-| `model` | string | `"Image Model"`, `"Math Model"`, or `"Both"` |
-
----
-
-## Map Location
-
-Default map center is set to **Bhopal, Madhya Pradesh, India**.
-To change it, find this line in `index.html`:
-
-```js
-const MAP_CENTER = { lat: 23.2599, lng: 77.4126 };
+localhost/*
+localhost:5500/*
+127.0.0.1/*
 ```
+This prevents anyone who sees the key in your public repo from using it on their own project.
 
-Replace with any coordinates you need.
+**4. Run the app**
 
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| UI | HTML5, CSS3, Vanilla JavaScript |
-| Maps | Google Maps JavaScript API |
-| Fonts | Rajdhani, JetBrains Mono (Google Fonts) |
-| Deployment | Single HTML file — no build step required |
+Open `index.html` directly in a browser, or serve through VS Code Live Server, or any local HTTP server.
 
 ---
 
@@ -115,11 +134,26 @@ Replace with any coordinates you need.
 
 | Problem | Fix |
 |---|---|
-| Map not showing, just dark background | Check browser Console (F12) for the exact Maps error |
+| Map shows dark background, no tiles | Check Console (F12) for the exact Google Maps error |
 | `ApiNotActivatedMapError` | Enable Maps JavaScript API in Google Cloud Console |
-| `RefererNotAllowedMapError` | Add your domain or `localhost/*` to the API key's allowed referrers |
-| `InvalidKeyMapError` | Re-copy the key — no extra spaces or characters |
-| `styles.css` or `index.js` 404 errors | Remove those `<link>` / `<script>` tags from your project's main `index.html` |
-| Map loads but no dots appear | Call `simulateDetection()` in the browser console to test |
+| `RefererNotAllowedMapError` | Add `localhost/*` to your API key's allowed HTTP referrers |
+| `InvalidKeyMapError` | Re-copy the key — check for extra spaces or characters |
+| `styles.css 404` | Make sure all 3 files are in the same folder |
+| Map loads but no red dots | Click "+ Simulate Detection" to test, or call `window.PotholeGuard.reportDetection()` from the console |
+| GPS not locking | Allow location permission in the browser when prompted. Use HTTPS or localhost — GPS is blocked on plain HTTP |
+| Proximity card not activating | GPS must be active and a pothole must be within 100m. Increase `PROXIMITY_RADIUS_M` in `app.js` for testing |
 
 ---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Structure | HTML5 |
+| Styling | CSS3 with custom properties |
+| Logic | Vanilla JavaScript (ES6+) |
+| Maps | Google Maps JavaScript API |
+| Location | Browser Geolocation API (`watchPosition`) |
+| Fonts | Rajdhani + JetBrains Mono via Google Fonts |
+| Build | None — plain files, no bundler required |
+
