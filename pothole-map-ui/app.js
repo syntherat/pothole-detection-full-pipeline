@@ -1,6 +1,4 @@
-// ── POTHOLEGUARD — app.js ──
-
-const GOOGLE_API_KEY = "AIzaSyAm6wJnu_CrdP7cPn6dQu26SYglZ71gxTU"; // ← replace with your key
+const GOOGLE_API_KEY = "API_KEY"; 
 const MAP_CENTER = { lat: 23.2599, lng: 77.4126 };  // ← Bhopal default
 const PROXIMITY_RADIUS_M = 100;                      // ← alert radius in meters
 
