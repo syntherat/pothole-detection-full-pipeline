@@ -5,9 +5,7 @@ Wraps TwoStageDetector so the orchestrator can pass in a frame (numpy array
 or image path) and get back a simple confidence score, instead of a raw
 YOLO Results object.
 
-Uses TwoStageDetector.detect_potholes() directly (NOT utils.run_detection),
-because run_detection() also saves/annotates images to disk -- more than
-we want mid-pipeline. We only annotate/save once a detection is confirmed.
+app's TwoStageDetector	Runs YOLO on a frame, returns an average confidence score
 """
 
 import sys
@@ -16,13 +14,13 @@ import cv2
 import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-VISION_APP_DIR = BASE_DIR / "pothole_detect_app" / "app"
+VISION_APP_DIR = BASE_DIR / "pothole_detection_app" / "app"
 sys.path.insert(0, str(BASE_DIR))
 
-from pothole_detect_app.app.two_stage_detection import create_two_stage_detector  # noqa: E402
+from pothole_detection_app.app.two_stage_detection import create_two_stage_detector  # noqa: E402
 
-POTHOLE_MODEL_PATH = BASE_DIR / "pothole_detect_app" / "model" / "best.pt"
-ROAD_MODEL_PATH = BASE_DIR / "pothole_detect_app" / "model" / "road_seg.pt"
+POTHOLE_MODEL_PATH = BASE_DIR / "pothole_detection_app" / "model" / "best.pt"
+ROAD_MODEL_PATH = BASE_DIR / "pothole_detection_app" / "model" / "road_seg.pt"
 
 
 class VisionSession:

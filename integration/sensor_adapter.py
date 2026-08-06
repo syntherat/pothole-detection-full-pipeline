@@ -1,10 +1,7 @@
 """
-integration/sensor_adapter.py
+pothole_detect_app's PotholeDetector + .pkl model	
 
-Wraps your existing PotholeDetector (physics FSM) and the sklearn AI model so the orchestrator can call one function per row and get back a score, not just a hard 0/1 label.
-
-Import path assumption: this file sits in `integration/`, next to your
-EPICS/ folder. Adjust sys.path if your layout differs.
+Runs physics + AI per row, returns a real confidence score instead of just 0/1
 """
 
 import sys
@@ -13,12 +10,12 @@ import pandas as pd
 import joblib
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-EPICS_DETECTOR_DIR = BASE_DIR / "pothole-detect-physics" / "detector_py"
+EPICS_DETECTOR_DIR = BASE_DIR / "pothole_detect_physics" / "detector_py"
 sys.path.insert(0, str(EPICS_DETECTOR_DIR))
 
 from pothole_detection import PotholeDetector  # noqa: E402
 
-AI_MODEL_PATH = BASE_DIR / "pothole-detect-physics" / "Data" / "pothole_ai_model.pkl"
+AI_MODEL_PATH = BASE_DIR / "pothole_detect_physics" / "Data" / "pothole_ai_model.pkl"
 
 FEATURE_COLUMNS = ["ax", "ay", "az", "gx", "gy", "gz", "speed"]
 
