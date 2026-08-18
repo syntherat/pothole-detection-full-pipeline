@@ -79,4 +79,4 @@ def run(limit: int | None = None):
 if __name__ == "__main__":
     # Start small -- full 200s @ 400Hz is 80,000 rows.
     # Remove `limit` once you've confirmed the pipeline works end-to-end.
-    run(limit=2000)
+    run()

@@ -96,6 +96,10 @@
     <span id="toast-msg"></span>
   </div>
 
+  <!-- config.js holds the real API key locally (gitignored).
+       Must load BEFORE app.js, since app.js reads CONFIG.GOOGLE_API_KEY
+       and dynamically loads the Google Maps script itself. -->
+  <script src="config.js"></script>
   <script src="app.js"></script>
 
 </body>

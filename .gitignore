@@ -23,3 +23,5 @@ Thumbs.db
 
 *.log
 pothole_detection.log
+
+pothole_map_ui/config.js

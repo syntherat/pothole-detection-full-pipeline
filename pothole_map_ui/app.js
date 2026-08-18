@@ -1,5 +1,7 @@
-const GOOGLE_API_KEY = "API_KEY"; 
-const MAP_CENTER = { lat: 23.2599, lng: 77.4126 };  // ← Bhopal default
+// Real key lives in config.js (gitignored, loaded before this file).
+// See config.example.js for the template teammates should copy.
+const GOOGLE_API_KEY = window.GOOGLE_API_KEY || "API_KEY";
+const MAP_CENTER = { lat: 23.2599, lng: 77.4126 };  
 const PROXIMITY_RADIUS_M = 100;                      // ← alert radius in meters
 
 // ── STATE ────────────────────────────────────────────────────────────────
@@ -327,24 +329,73 @@ window.PotholeGuard = {
   isDetected:   () => potholes.length > 0,
 };
 
+// ── HYBRID PIPELINE POLLING ───────────────────────────────────────────────
+// Reads confirmed events written by integration/pave_connector.py and
+// reports any new ones through the PotholeGuard API above.
+// Requires index.html to be served over http:// (Live Server / Live Preview) --
+// fetch() on file:// will fail silently with a CORS error.
+const PAVE_EVENTS_URL = '../integration/pave_events.json'; // adjust if your folder layout differs
+const PAVE_POLL_INTERVAL_MS = 3000;
+const seenEventIds = new Set();
+
+async function pollPaveEvents() {
+  try {
+    const res = await fetch(PAVE_EVENTS_URL, { cache: 'no-store' });
+    if (!res.ok) return; // file not created yet -- fine, just retry next tick
+    const events = await res.json();
+
+    events.forEach(evt => {
+      if (seenEventIds.has(evt.event_id)) return;
+      seenEventIds.add(evt.event_id);
+
+      const locationName = `Hybrid Detection (conf ${evt.confidence.toFixed(2)})`;
+      window.PotholeGuard.reportDetection(evt.lat, evt.lng, locationName, 'Both');
+    });
+  } catch (err) {
+    console.warn('Could not poll pave_events.json:', err.message);
+  }
+}
+
+setInterval(pollPaveEvents, PAVE_POLL_INTERVAL_MS);
+pollPaveEvents(); // run once immediately on load
+
 // ── HELPERS ───────────────────────────────────────────────────────────────
 function formatTime(d) {
   return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // ── LOAD GOOGLE MAPS ──────────────────────────────────────────────────────
-(function() {
-  if (GOOGLE_API_KEY === "YOUR_GOOGLE_MAPS_API_KEY") {
-    ['google-map', 'panel-google-map'].forEach(id => {
-      const el = document.getElementById(id);
-      el.style.cssText = 'display:flex;align-items:center;justify-content:center;background:#13181f;';
-      el.innerHTML = `<div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#2a3040;text-align:center;letter-spacing:1px;">SET YOUR GOOGLE MAPS API KEY<br>in app.js</div>`;
-    });
-    return;
-  }
-  const s = document.createElement('script');
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initMaps`;
-  s.async = true;
-  s.defer = true;
-  document.head.appendChild(s);
+(function () {
+    const apiKey = window.GOOGLE_API_KEY;
+
+    if (!apiKey) {
+        console.error("Google Maps API key not found.");
+
+        ["google-map", "panel-google-map"].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            el.style.cssText =
+                "display:flex;align-items:center;justify-content:center;background:#13181f;";
+
+            el.innerHTML = `
+                <div style="
+                    font-family:'JetBrains Mono',monospace;
+                    font-size:12px;
+                    color:#ff6b6b;
+                    text-align:center;">
+                    config.js not loaded<br>
+                    GOOGLE_API_KEY missing
+                </div>`;
+        });
+
+        return;
+    }
+
+    const script = document.createElement("script");
+    script.src =
+        `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMaps`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
 })();
