@@ -583,7 +583,7 @@ class PotholeAppFiltered:
         
         self.current_image = frame
         settings = self._snapshot_runtime_settings()
-        display, num_det, _ = self._detect_frame(frame, settings=settings)
+        display, num_det, _, _ = self._detect_frame(frame, settings=settings)
         
         # Display result
         self._display_on_canvas(display)
@@ -635,9 +635,15 @@ class PotholeAppFiltered:
 
         display = frame.copy()
         num_det = 0
+        # Confidences of the boxes that survive class + road-mask filtering. The
+        # detector already produces these; they used to be dropped, which left the
+        # event log with a detection count but no measure of how sure we were.
+        confidences = []
 
         if results and results[0].boxes:
-            for box, class_id in zip(results[0].boxes.xyxy, results[0].boxes.cls):
+            for box, class_id, box_conf in zip(
+                results[0].boxes.xyxy, results[0].boxes.cls, results[0].boxes.conf
+            ):
                 class_id = int(class_id)
 
                 if class_id not in settings["enabled_det_classes"]:
@@ -653,6 +659,7 @@ class PotholeAppFiltered:
                         continue
 
                 num_det += 1
+                confidences.append(float(box_conf))
                 color = (0, 255, 0) if class_id == 0 else (255, 0, 0)
                 cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(
@@ -680,7 +687,7 @@ class PotholeAppFiltered:
             (0, 255, 255),
             2,
         )
-        return display, num_det, road_mask
+        return display, num_det, road_mask, confidences
 
     def start_video_detection(self, path: Path):
         """Start realtime detection on video file."""
@@ -730,7 +737,7 @@ class PotholeAppFiltered:
                 break
 
             self.video_frame_idx += 1
-            display, num_det, road_mask = self._detect_frame(frame, settings=settings)
+            display, num_det, road_mask, confidences = self._detect_frame(frame, settings=settings)
 
             if num_det > 0 and self.video_output_dir is not None:
                 event_id = self._build_event_id(self.video_frame_idx)
@@ -753,9 +760,14 @@ class PotholeAppFiltered:
                 if road_mask is not None:
                     cv2.imwrite(str(self.video_output_dir / "road_mask" / f"{stem}.png"), road_mask)
 
+                # Mean over the accepted boxes, matching how the integration layer's
+                # vision stage scores a frame (integration/vision_adapter.py).
+                mean_conf = (sum(confidences) / len(confidences)) if confidences else None
+
                 event_record = {
                     "id": event_id,
                     "potholes_detected": int(num_det),
+                    "confidence": round(mean_conf, 4) if mean_conf is not None else None,
                     "latitude": lat,
                     "longitude": lon,
                     "timestamp": timestamp_iso,

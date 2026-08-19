@@ -89,6 +89,43 @@ def test_frame_provider_is_deterministic():
         pytest.skip("No sample images configured yet in frame_provider.MOCK_IMAGE_DIR")
 
 
+def test_mock_provider_degrades_when_no_images():
+    """
+    MockFrameProvider must return None rather than raise when no stand-in images
+    exist, matching CarlaFrameProvider's interface. get_mock_frame() raising used
+    to kill the orchestrator on its first triggered event; the provider now lets
+    the run finish and report how many events it skipped.
+    """
+    from frame_provider import MockFrameProvider, _mock_image_pool
+
+    if _mock_image_pool():
+        pytest.skip("Stand-in images are present, so the degraded path cannot be exercised")
+
+    provider = MockFrameProvider()
+    assert provider.get_frame(1.0, "some-event-id") is None
+
+    # The underlying function keeps its raising contract.
+    with pytest.raises(FileNotFoundError):
+        get_mock_frame("some-event-id")
+
+
+def test_mock_frame_is_stable_across_processes():
+    """
+    Selection must not depend on PYTHONHASHSEED. Python salts str hashing per
+    process, so the original hash()-based index made get_mock_frame's
+    'reproducible' docstring true only within a single run.
+    """
+    import hashlib
+    from frame_provider import _mock_image_pool
+
+    pool = _mock_image_pool()
+    if not pool:
+        pytest.skip("No stand-in images configured")
+
+    expected = int(hashlib.md5(b"fixed-event-id").hexdigest(), 16) % len(pool)
+    assert get_mock_frame("fixed-event-id") == str(pool[expected])
+
+
 def test_simulate_gps_moves_with_time():
     lat0, lng0 = simulate_gps(0.0)
     lat1, lng1 = simulate_gps(10.0)

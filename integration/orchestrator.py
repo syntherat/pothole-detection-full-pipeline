@@ -75,6 +75,12 @@ def run(limit: int | None = None):
     print(f"\nTotal confirmed pothole events: {len(confirmed_events)}")
     if skipped_no_frame:
         print(f"Sensor-triggered rows skipped for want of a frame: {skipped_no_frame}")
+        if not confirmed_events:
+            print(
+                "  Every triggered row was skipped, so nothing could reach the vision\n"
+                "  stage. With the mock provider this means no stand-in images were\n"
+                "  found -- see pothole_detection_app/data/sample_images/README.md."
+            )
     return confirmed_events
 
 

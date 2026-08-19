@@ -15,13 +15,28 @@ from datetime import datetime, timezone
 EVENTS_FILE = Path(__file__).resolve().parent / "pave_events.json"
 
 
-def send_to_pave(event) -> None:
+def send_record_to_pave(record: dict) -> None:
+    """
+    Append one already-shaped record to pave_events.json.
+
+    Single writer for contract #7 -- every producer goes through here so the
+    file's shape is defined in exactly one place. See
+    context/20-data-contracts.md before changing the keys.
+    """
     events = []
     if EVENTS_FILE.exists():
         with open(EVENTS_FILE, "r") as f:
             events = json.load(f)
 
-    events.append({
+    events.append(record)
+
+    with open(EVENTS_FILE, "w") as f:
+        json.dump(events, f, indent=2)
+
+
+def send_to_pave(event) -> None:
+    """Publish a confirmed PotholeCandidateEvent from the sensor+vision cascade."""
+    send_record_to_pave({
         "event_id": event.event_id,
         "lat": event.lat,
         "lng": event.lng,
@@ -29,6 +44,3 @@ def send_to_pave(event) -> None:
         "detected_by": "hybrid (sensor+vision)",
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
-
-    with open(EVENTS_FILE, "w") as f:
-        json.dump(events, f, indent=2)

@@ -7,7 +7,8 @@ __pycache__/
 
 integration/pave_events.json
 
-pothole_detection_app/data/sample_images
+pothole_detection_app/data/sample_images/*
+!pothole_detection_app/data/sample_images/README.md
 
 **/Ultralytics/settings.json
 

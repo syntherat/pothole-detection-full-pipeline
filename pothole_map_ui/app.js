@@ -348,8 +348,19 @@ async function pollPaveEvents() {
       if (seenEventIds.has(evt.event_id)) return;
       seenEventIds.add(evt.event_id);
 
-      const locationName = `Hybrid Detection (conf ${evt.confidence.toFixed(2)})`;
-      window.PotholeGuard.reportDetection(evt.lat, evt.lng, locationName, 'Both');
+      // detected_by is the producer's own provenance label -- 'Image Model' from
+      // the filtered GUI, 'hybrid (sensor+vision)' from the cascade. It was being
+      // ignored, so every event claimed to be sensor+vision. Fall back rather
+      // than mislabel.
+      const model = evt.detected_by || 'Both';
+
+      // confidence is optional: runs recorded before it was logged carry null,
+      // and calling .toFixed() on that used to throw and abort the whole batch.
+      const locationName = (typeof evt.confidence === 'number')
+        ? `${model} (conf ${evt.confidence.toFixed(2)})`
+        : model;
+
+      window.PotholeGuard.reportDetection(evt.lat, evt.lng, locationName, model);
     });
   } catch (err) {
     console.warn('Could not poll pave_events.json:', err.message);
