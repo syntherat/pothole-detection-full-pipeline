@@ -45,3 +45,26 @@ def simulate_gps(timestamp: float) -> tuple[float, float]:
     lat = START_LAT + timestamp * METERS_PER_SECOND_LAT
     lng = START_LNG
     return lat, lng
+
+
+class MockFrameProvider:
+    """
+    Object wrapper around the two functions above, so the orchestrator can take
+    a provider as a parameter and the mock and the real CARLA provider are
+    interchangeable.
+
+    The functions themselves are left untouched -- test_integration.py calls
+    them directly.
+
+    Note the asymmetry, which is the whole reason this is a mock: get_frame()
+    ignores the timestamp and keys on event_id, because there is no real
+    relationship between a sensor row and any image in the pool. The CARLA
+    provider does the opposite, and keying on time is what makes it real.
+    See integration/carla_frame_provider.py.
+    """
+
+    def get_frame(self, timestamp: float, event_id: str | None = None) -> str:
+        return get_mock_frame(event_id if event_id is not None else str(timestamp))
+
+    def get_gps(self, timestamp: float) -> tuple[float, float]:
+        return simulate_gps(timestamp)

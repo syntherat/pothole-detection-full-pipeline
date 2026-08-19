@@ -73,10 +73,35 @@ def run(limit: int | None = None):
             confirmed_events.append(event)
 
     print(f"\nTotal confirmed pothole events: {len(confirmed_events)}")
+    if skipped_no_frame:
+        print(f"Sensor-triggered rows skipped for want of a frame: {skipped_no_frame}")
     return confirmed_events
 
 
+def main():
+    parser = argparse.ArgumentParser(description="Run the sensor-vision cascade.")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Process only the first N rows. The full synthetic "
+                             "dataset is 80,000 rows with a YOLO pass per trigger.")
+    parser.add_argument("--dataset", type=Path, default=None,
+                        help="Sensor CSV in contract #1 shape. Defaults to the synthetic dataset.")
+    parser.add_argument("--carla-run", type=Path, default=None,
+                        help="Recorded CARLA run directory. Uses real time-synced "
+                             "frames and GNSS instead of the mocks.")
+    args = parser.parse_args()
+
+    provider = None
+    if args.carla_run:
+        from carla_frame_provider import CarlaFrameProvider
+        provider = CarlaFrameProvider(args.carla_run)
+        print(f"Using CARLA run: {args.carla_run}")
+
+    if args.limit is None:
+        print("No --limit given: processing the ENTIRE dataset. "
+              "Ctrl-C and pass --limit 2000 if that was not intended.")
+
+    run(limit=args.limit, dataset_path=args.dataset, frame_provider=provider)
+
+
 if __name__ == "__main__":
-    # Start small -- full 200s @ 400Hz is 80,000 rows.
-    # Remove `limit` once you've confirmed the pipeline works end-to-end.
-    run()
+    main()
