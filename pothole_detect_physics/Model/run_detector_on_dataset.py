@@ -1,8 +1,9 @@
+import sys
+
 import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 
-from pothole_detection import PotholeDetector
 from pathlib import Path
 
 
@@ -11,6 +12,14 @@ from pathlib import Path
 # -----------------------------
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# This script lives in Model/ but PotholeDetector lives in detector_py/, so the
+# module is not importable by bare name from here. Same sys.path pattern the
+# integration adapters use -- see integration/sensor_adapter.py.
+DETECTOR_DIR = BASE_DIR / "detector_py"
+sys.path.insert(0, str(DETECTOR_DIR))
+
+from pothole_detection import PotholeDetector  # noqa: E402
 
 DATASET_PATH = BASE_DIR / "Data" / "synthetic_pothole_dataset.csv"
 MODEL_PATH = BASE_DIR / "Data" / "pothole_ai_model.pkl"

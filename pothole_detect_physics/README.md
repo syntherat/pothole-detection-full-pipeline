@@ -19,11 +19,11 @@ EPICS/
 │
 ├── detector_py/
 │   ├── generate_dataset.py
-│   ├── pothole_detection.py
-│   └── run_detector_on_dataset.py
+│   └── pothole_detection.py
 │
 ├── Model/
-│   └── train_ai_model.py
+│   ├── train_ai_model.py
+│   └── run_detector_on_dataset.py
 │
 ├── .gitignore
 └── README.md
@@ -41,7 +41,8 @@ EPICS/
 
 **Model/**
 
-* Contains the script used to train the AI model.
+* Contains the script used to train the AI model, and the script that runs the
+  full detector (physics FSM + AI filter) over the dataset.
 
 ---
 
@@ -99,7 +100,7 @@ Data/pothole_ai_model.pkl
 ### 3. Run the Pothole Detection System
 
 ```
-python detector_py/run_detector_on_dataset.py
+python Model/run_detector_on_dataset.py
 ```
 
 This script loads the trained model and runs pothole detection on the dataset.
