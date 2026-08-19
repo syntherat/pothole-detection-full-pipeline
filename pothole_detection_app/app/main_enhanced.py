@@ -16,7 +16,12 @@ import logging
 import cv2
 import numpy as np
 
-from utils import run_detection, pil_resize, ensure_dirs, set_conf_threshold, load_model, DEFAULT_MODEL_PATH, OUTPUT_DIR, _conf
+from utils import (
+    run_detection, pil_resize, ensure_dirs, set_conf_threshold,
+    get_conf_threshold, load_model, DEFAULT_MODEL_PATH, OUTPUT_DIR,
+)
+# NOTE: import get_conf_threshold(), never `_conf` itself -- importing the
+# float binds it by value at import time and the slider stops working.
 from enhanced_utils import (
     batch_process_images, preprocess_image, PerformanceMonitor,
     export_detections_csv, export_detections_json
@@ -799,7 +804,7 @@ class PotholeAppEnhanced:
                 self.root.update_idletasks()
                 results, road_mask = self.two_stage_detector.detect_potholes(
                     frame, 
-                    conf=_conf,
+                    conf=get_conf_threshold(),
                     return_mask=True,
                     lowres_width=ROAD_MASK_WIDTH
                 )
@@ -809,7 +814,7 @@ class PotholeAppEnhanced:
                 )
             else:
                 # Single-stage detection
-                results = self.two_stage_detector.pothole_model(frame, conf=_conf, verbose=False)[0]
+                results = self.two_stage_detector.pothole_model(frame, conf=get_conf_threshold(), verbose=False)[0]
                 annotated = results.plot()
             
             inf_time = (time.time() - start_time) * 1000
@@ -936,14 +941,14 @@ class PotholeAppEnhanced:
                         last_road_mask = self.two_stage_detector.get_road_mask(frame, lowres_width=ROAD_MASK_WIDTH)
                     results = self.two_stage_detector.detect_potholes(
                         frame,
-                        conf=_conf,
+                        conf=get_conf_threshold(),
                         return_mask=False,
                         road_mask=last_road_mask,
                         lowres_width=ROAD_MASK_WIDTH
                     )
                     annotated = self.two_stage_detector.visualize(frame, results, last_road_mask, show_mask=show_road_mask)
                 else:
-                    results = self.two_stage_detector.pothole_model(frame, conf=_conf, verbose=False)[0]
+                    results = self.two_stage_detector.pothole_model(frame, conf=get_conf_threshold(), verbose=False)[0]
                     annotated = results.plot()
                 
                 total_time += (time.time() - t0) * 1000

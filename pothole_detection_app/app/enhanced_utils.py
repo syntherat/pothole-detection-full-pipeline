@@ -16,9 +16,13 @@ logger = logging.getLogger(__name__)
 # Keep existing imports
 from utils import (
     APP_DIR, ROOT, MODEL_DIR, OUTPUT_DIR, DEFAULT_MODEL_PATH,
-    _model, _conf, set_conf_threshold, load_model, _imwrite_unicode,
+    set_conf_threshold, get_conf_threshold, load_model, _imwrite_unicode,
     pil_resize, ensure_dirs, apply_roi_mask
 )
+# NOTE: `_conf` and `_model` were imported here. Both are module globals that
+# utils rebinds at runtime, and importing them binds by value at import time --
+# so `_conf` stayed 0.35 forever and `_model` stayed None. Call
+# get_conf_threshold() / load_model() instead.
 
 # Batch processing
 def batch_process_images(image_folder, output_folder=None, save_csv=True, save_json=True, roi=None):
@@ -73,9 +77,9 @@ def batch_process_images(image_folder, output_folder=None, save_csv=True, save_j
                 if img is None:
                     raise ValueError(f"Could not read image: {img_path}")
                 img = apply_roi_mask(img, roi)
-                results = model.predict(source=img, save=False, conf=_conf, verbose=False)
+                results = model.predict(source=img, save=False, conf=get_conf_threshold(), verbose=False)
             else:
-                results = model.predict(source=str(img_path), save=False, conf=_conf, verbose=False)
+                results = model.predict(source=str(img_path), save=False, conf=get_conf_threshold(), verbose=False)
             result = results[0]
             inference_time = (time.time() - start_time) * 1000
             

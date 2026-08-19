@@ -1,5 +1,13 @@
 pandas
 numpy
-scikit-learn
+# Pinned to the version that pickled Data/pothole_ai_model.pkl (recorded as
+# _sklearn_version inside the file). Loading that model under a different
+# scikit-learn raises InconsistentVersionWarning, which scikit-learn documents
+# as possibly producing invalid results.
+#
+# If you retrain via Model/train_ai_model.py, the new .pkl carries whatever
+# version you trained with -- update this pin to match, or the next person to
+# clone gets the warning back.
+scikit-learn==1.7.2
 joblib
 matplotlib

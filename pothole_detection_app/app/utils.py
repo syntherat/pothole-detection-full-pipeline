@@ -43,6 +43,19 @@ def set_conf_threshold(v: float):
     logger.info(f"Confidence threshold set to {_conf:.2f}")
 
 
+def get_conf_threshold() -> float:
+    """
+    Read the current global confidence threshold.
+
+    Use this from other modules instead of `from utils import _conf`.
+    That import binds the FLOAT BY VALUE at import time, so it keeps returning
+    0.35 forever no matter how many times set_conf_threshold() is called --
+    which silently disconnected the GUI's confidence slider from detection.
+    Calling a function reads the live value.
+    """
+    return _conf
+
+
 def load_model(model_path: Path | str | None = None):
     """Load YOLO model once and cache it globally."""
     global _model
