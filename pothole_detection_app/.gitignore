@@ -24,6 +24,7 @@ env/
 *.onnx
 model/*
 !model/best.pt
+!model/road_seg.pt
 !model/.gitkeep
 
 # Training Data & Datasets
