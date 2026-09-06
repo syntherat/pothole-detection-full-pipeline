@@ -33,6 +33,8 @@ import logging
 
 import carla
 
+G = 9.81
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,10 +53,13 @@ class ImpulseApplier:
     available methods.
     """
 
-    def __init__(self, vehicle: carla.Vehicle, delta_v: float, ticks: int):
+    def __init__(self, vehicle: carla.Vehicle, delta_v: float, ticks: int,
+                 unload_ticks: int = 8, unload_scale: float = 1.0):
         self.vehicle = vehicle
         self.delta_v = delta_v
         self.ticks = max(1, ticks)
+        self.unload_ticks = max(1, unload_ticks)
+        self.unload_scale = unload_scale
 
         physics = vehicle.get_physics_control()
         self.mass = physics.mass
@@ -62,6 +67,7 @@ class ImpulseApplier:
 
         self.direct = hasattr(vehicle, "add_impulse_at_location")
         self._pending: list[tuple[carla.Vector3D, carla.Location]] = []
+        self._pending_force: list[tuple[carla.Vector3D, carla.Location]] = []
 
         logger.info(
             "Impulse model: mass=%.0f kg, path=%s",
@@ -87,8 +93,60 @@ class ImpulseApplier:
         for _ in range(self.ticks):
             self._pending.append((impulse, strike_point))
 
+    def schedule_unload(self, severity: float, strike_point: carla.Location) -> None:
+        """
+        Queue a sustained wheel-unloading phase: the wheel falling INTO a hole,
+        rather than being kicked downward.
+
+        Why this exists at all -- an impulse produces a 1-2 sample transient, and
+        `PotholeDetector` discards any event whose near-zero phase is shorter
+        than `min_air_time` (0.01 s). Every impulse-only setting therefore
+        produced DROP, FREEFALL and IMPACT samples that were individually correct
+        and still never formed a valid event. Issue #35.
+
+        Magnitude is the vehicle's weight, so the downward force cancels the
+        suspension's upward reaction and the accelerometer settles near zero for
+        as long as it is held. Severity scales how completely it unloads.
+        """
+        magnitude = self.mass * G * severity * self.unload_scale
+        force = carla.Vector3D(0.0, 0.0, -magnitude)
+        for _ in range(self.unload_ticks):
+            self._pending_force.append((force, strike_point))
+
+    def _apply_at_point(self, vec: carla.Vector3D, point: carla.Location,
+                        linear, angular) -> None:
+        """
+        Apply `vec` at `point` using the linear+angular pair given.
+
+        Same decomposition the impulse fallback uses: a force (or impulse) at an
+        off-centre point is the same force at the centre of mass plus a torque of
+        r x F. Applying it only at the centre would leave the gyro channels flat,
+        and the classifier would happily learn "flat gyro" as the tell.
+        """
+        linear(vec)
+
+        transform = self.vehicle.get_transform()
+        com_world = transform.transform(carla.Location(
+            x=self.com.x, y=self.com.y, z=self.com.z
+        ))
+        rx = point.x - com_world.x
+        ry = point.y - com_world.y
+        rz = point.z - com_world.z
+
+        angular(carla.Vector3D(
+            x=ry * vec.z - rz * vec.y,
+            y=rz * vec.x - rx * vec.z,
+            z=rx * vec.y - ry * vec.x,
+        ))
+
     def tick(self) -> None:
-        """Apply one tick's worth of any queued impulse. Call once per world tick."""
+        """Apply one tick's worth of any queued impulse or force. Once per world tick."""
+        if self._pending_force:
+            force, point = self._pending_force.pop(0)
+            self._apply_at_point(force, point,
+                                 self.vehicle.add_force,
+                                 self.vehicle.add_torque)
+
         if not self._pending:
             return
 
@@ -121,7 +179,7 @@ class ImpulseApplier:
 
     @property
     def busy(self) -> bool:
-        return bool(self._pending)
+        return bool(self._pending) or bool(self._pending_force)
 
 
 def wheel_positions(vehicle: carla.Vehicle, scale: float) -> list[carla.Location]:

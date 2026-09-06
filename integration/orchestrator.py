@@ -3,6 +3,7 @@ Loops the CSV, calls each stage in order, drives the whole cascade
 python integration/orchestrator.py
 """
 
+import argparse
 import uuid
 from pathlib import Path
 import pandas as pd
@@ -10,7 +11,7 @@ import pandas as pd
 from schema import PotholeCandidateEvent
 from sensor_adapter import SensorSession
 from vision_adapter import VisionSession
-from frame_provider import get_mock_frame, simulate_gps
+from frame_provider import MockFrameProvider
 from fusion import should_trigger_vision, fuse, VISION_THRESHOLD
 from pave_connector import send_to_pave
 
@@ -18,15 +19,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATASET_PATH = BASE_DIR / "pothole_detect_physics" / "Data" / "synthetic_pothole_dataset.csv"
 
 
-def run(limit: int | None = None):
-    data = pd.read_csv(DATASET_PATH)
+def run(limit: int | None = None,
+        dataset_path: Path | None = None,
+        frame_provider=None):
+    """
+    `frame_provider` is anything with get_frame(timestamp, event_id) and
+    get_gps(timestamp) -- MockFrameProvider by default, CarlaFrameProvider for a
+    recorded run. Both return None when they cannot supply a value, and those
+    rows are counted and reported rather than silently dropped.
+    """
+    data = pd.read_csv(dataset_path or DATASET_PATH)
     if limit:
         data = data.head(limit)
+
+    provider = frame_provider if frame_provider is not None else MockFrameProvider()
 
     sensor = SensorSession()
     vision = VisionSession()
 
     confirmed_events = []
+    skipped_no_frame = 0
+    skipped_no_gps = 0
 
     for _, row in data.iterrows():
         event = PotholeCandidateEvent(
@@ -47,9 +60,20 @@ def run(limit: int | None = None):
         if not event.sensor_triggered:
             continue
 
-        # --- bridge: mock frame + GPS until real data exists ---
-        event.frame_path = get_mock_frame(event.event_id)
-        event.lat, event.lng = simulate_gps(event.timestamp)
+        # --- bridge: frame + GPS from whichever provider is in use ---
+        frame_path = provider.get_frame(event.timestamp, event.event_id)
+        if frame_path is None:
+            skipped_no_frame += 1
+            continue
+        event.frame_path = frame_path
+
+        gps = provider.get_gps(event.timestamp)
+        if gps is None:
+            # CarlaFrameProvider returns None outside the recorded GNSS window.
+            # Publishing an event with no position would put a marker at (0, 0).
+            skipped_no_gps += 1
+            continue
+        event.lat, event.lng = gps
 
         # --- stage 2: vision confirmation ---
         vision_result = vision.confirm(event.frame_path, conf=VISION_THRESHOLD)
@@ -73,6 +97,8 @@ def run(limit: int | None = None):
             confirmed_events.append(event)
 
     print(f"\nTotal confirmed pothole events: {len(confirmed_events)}")
+    if skipped_no_gps:
+        print(f"Sensor-triggered rows skipped for want of a GPS fix: {skipped_no_gps}")
     if skipped_no_frame:
         print(f"Sensor-triggered rows skipped for want of a frame: {skipped_no_frame}")
         if not confirmed_events:

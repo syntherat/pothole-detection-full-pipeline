@@ -131,7 +131,11 @@ def main() -> int:
         )
 
         tracker = ph.PotholeTracker(placed, config.LABEL_WINDOW_S)
-        applier = ImpulseApplier(vehicle, config.IMPULSE_DELTA_V, config.IMPULSE_TICKS)
+        applier = ImpulseApplier(
+            vehicle, config.IMPULSE_DELTA_V, config.IMPULSE_TICKS,
+            unload_ticks=config.UNLOAD_TICKS,
+            unload_scale=config.UNLOAD_FORCE_SCALE,
+        )
         follower = rt.WaypointFollower(vehicle, route, config.TARGET_SPEED_KMH)
 
         if args.no_camera:
@@ -174,7 +178,16 @@ def main() -> int:
                 # --- pothole logic -------------------------------------------
                 wheels = wheel_positions(vehicle, config.WHEEL_POSITION_SCALE)
                 for pothole, strike in tracker.update(sim_time, wheels):
-                    applier.schedule(pothole.severity, strike)
+                    # EITHER/OR, not both. Stacking them drove az to -25 when the
+                    # unload's whole purpose is to hold it near ZERO -- the two
+                    # mechanisms fight, and the recovery then skips the FSM's
+                    # |az| < 2 window on its way back up. The unload alone
+                    # cancels the suspension reaction, which is the physical
+                    # model of a wheel falling into a hole.
+                    if config.UNLOAD_ENABLED:
+                        applier.schedule_unload(pothole.severity, strike)
+                    else:
+                        applier.schedule(pothole.severity, strike)
                 applier.tick()
 
                 # --- contract #1 row -----------------------------------------
@@ -228,6 +241,9 @@ def main() -> int:
                 "target_speed_kmh": config.TARGET_SPEED_KMH,
                 "impulse_delta_v": config.IMPULSE_DELTA_V,
                 "impulse_ticks": config.IMPULSE_TICKS,
+                "unload_enabled": config.UNLOAD_ENABLED,
+                "unload_ticks": config.UNLOAD_TICKS,
+                "unload_force_scale": config.UNLOAD_FORCE_SCALE,
                 "imu_noise_accel_stddev": config.IMU_NOISE_ACCEL_STDDEV,
                 "imu_noise_gyro_stddev": config.IMU_NOISE_GYRO_STDDEV,
                 "camera_enabled": config.CAMERA_ENABLED,

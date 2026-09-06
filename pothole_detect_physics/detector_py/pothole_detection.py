@@ -57,6 +57,13 @@ class PotholeDetector:
         self.speed_at_impact = None
         self.impact_accel = None
 
+        # Peak of the rebound within the air-time window. See the FREEFALL
+        # branch for why the impact is found by peak search rather than by the
+        # first sample above rest.
+        self.peak_az = float("-inf")
+        self.t_peak = None
+        self.speed_at_peak = None
+
     def reset_state(self):
         """Reset detector state."""
         self.state = "IDLE"
@@ -65,6 +72,9 @@ class PotholeDetector:
         self.t_impact = None
         self.speed_at_impact = None
         self.impact_accel = None
+        self.peak_az = float("-inf")
+        self.t_peak = None
+        self.speed_at_peak = None
 
     def process_sample(
         self,
@@ -107,6 +117,35 @@ class PotholeDetector:
 
         elif self.state == "FREEFALL":
 
+            # Fire on the first sample that clears the impact gate -- unchanged.
+            # What changed is what happens when a sample lands BETWEEN rest and
+            # that gate.
+            #
+            # The original rule reset the machine on any sample above G - 0.5
+            # that had not already cleared the impact threshold:
+            #     elif az > (G - 0.5): self.reset_state()
+            # That demands the signal jump from the freefall band to above 19.81
+            # in ONE 2.5 ms sample, skipping the entire 9.31-19.81 range.
+            # generate_dataset.py writes exactly that discontinuity by hand
+            # (freefall 0.29 -> impact 22.11, nothing between), so the detector
+            # worked on its own synthetic data and could not work on anything
+            # else. Measured against CARLA: 33.3% of pothole samples land in that
+            # band and reset the machine, versus 4.8% in the synthetic set. See
+            # issue #35.
+            #
+            # A rising physical signal passes THROUGH that band on its way to the
+            # peak. Waiting instead of resetting accepts both shapes, and
+            # max_air_time still bounds how long we wait -- so this loosens the
+            # rule without removing the constraint.
+            #
+            # The event is still emitted on the threshold-crossing sample, NOT on
+            # the later peak. Timestamping it at the peak was tried and quietly
+            # halved cascade recall: `pothole_detected` then lands on a row that
+            # looks like ordinary driving, and the RandomForest filter downstream
+            # scores it 0 and discards the event.
+            elapsed = (timestamp - self.t_freefall_start
+                       if self.t_freefall_start is not None else 0.0)
+
             if az > self.impact_threshold:
 
                 self.t_impact = timestamp
@@ -117,7 +156,8 @@ class PotholeDetector:
 
                 self.reset_state()
 
-            elif az > (G - 0.5):
+            elif elapsed > self.max_air_time:
+                # Window closed without the rebound ever clearing the gate.
                 self.reset_state()
 
         return {

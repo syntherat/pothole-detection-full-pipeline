@@ -4,6 +4,25 @@ const GOOGLE_API_KEY = window.GOOGLE_API_KEY || "API_KEY";
 const MAP_CENTER = { lat: 23.2599, lng: 77.4126 };  
 const PROXIMITY_RADIUS_M = 100;                      // ← alert radius in meters
 
+// ── MAP MODE ─────────────────────────────────────────────────────────────
+// 'real'  -- Google base tiles + browser GPS. The original behaviour, untouched.
+// 'carla' -- base tiles hidden, CARLA's own road network drawn from GeoJSON.
+//
+// CARLA towns are geo-referenced near (0, 0), so real tiles would place every
+// marker in the Atlantic. Mode is chosen by URL rather than a build flag so both
+// coexist and can be demoed back to back. Anything without ?mode=carla behaves
+// exactly as it did before this existed.
+const _params    = new URLSearchParams(location.search);
+const MAP_MODE   = _params.get('mode') === 'carla' ? 'carla' : 'real';
+const CARLA_TOWN = _params.get('town') || 'Town03';
+const CARLA_ROADS_URL = `../carla_sim/out/${CARLA_TOWN}_roads.geojson`;
+// Published by integration/carla_replay.py while a recorded run is playing back
+// (contract #12). This is what replaces browser geolocation in CARLA mode -- the
+// recorded vehicle sits near (0, 0) and the browser's own fix would be thousands
+// of km away, on a different continent from the roads being drawn.
+const VEHICLE_POSITION_URL = '../integration/vehicle_position.json';
+const VEHICLE_POLL_MS = 200;
+
 // ── STATE ────────────────────────────────────────────────────────────────
 let potholes     = [];
 let mainMap      = null;
@@ -25,8 +44,8 @@ const NEARBY_NAMES = [
 ];
 
 // ── MAPS INIT ─────────────────────────────────────────────────────────────
-function initMaps() {
-  const style = [
+// Real-world basemap: dark Google tiles.
+const REAL_STYLE = [
     { elementType: 'geometry', stylers: [{ color: '#1a1f2e' }] },
     { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0c10' }] },
     { elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
@@ -37,14 +56,165 @@ function initMaps() {
     { featureType: 'poi', stylers: [{ visibility: 'off' }] },
     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
     { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
-  ];
+];
+
+// CARLA basemap: nothing at all. Every Google feature is switched off, leaving a
+// flat dark ground for the exported road network to be drawn onto. Leaving the
+// real tiles visible would show open ocean.
+//
+// The blanket `{ stylers: [{ visibility: 'off' }] }` this used to be did NOT work:
+// it hid features but left Google's own pale ground showing, so the town rendered
+// as dark lines on beige. Features are switched off individually instead, and
+// every geometry layer is painted explicitly. Verified in a browser, not assumed.
+const CARLA_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#0d1117' }] },
+  { elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0d1117' }] },
+  // Water matters here specifically: a CARLA town sits at (0, 0), which is ocean.
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1117' }] },
+  { featureType: 'road', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
+];
+
+function initMaps() {
   const opts = {
-    zoom: 14, center: MAP_CENTER, styles: style,
-    mapTypeControl: false, streetViewControl: false, fullscreenControl: false
+    zoom: 14, center: MAP_CENTER,
+    styles: MAP_MODE === 'carla' ? CARLA_STYLE : REAL_STYLE,
+    mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+    // Painted where no tiles exist -- which at (0, 0), zoom 18, is everywhere.
+    // Styles do not reach this surface; `setOptions` cannot change it later
+    // either, it is read once at construction. Without it the CARLA town renders
+    // as dark roads on Google's default beige.
+    ...(MAP_MODE === 'carla' ? { backgroundColor: '#0d1117' } : {}),
   };
   mainMap  = new google.maps.Map(document.getElementById('google-map'), opts);
   panelMap = new google.maps.Map(document.getElementById('panel-google-map'), { ...opts, zoom: 13 });
-  startLocationTracking();
+
+  if (MAP_MODE === 'carla') {
+    // Browser geolocation would drop the car marker in Bhopal while the roads
+    // sit near (0, 0) -- a vehicle thousands of km from the network it is meant
+    // to be driving on. Vehicle position has to come from the run's own GNSS
+    // instead, which is not wired up yet, so no car marker is drawn at all
+    // rather than a confidently wrong one. Proximity alerts are inactive in this
+    // mode as a direct consequence -- checkProximityFromLastKnown() needs a car
+    // marker to read a position from.
+    const gpsLabel  = document.getElementById('gps-label');
+    const gpsCoords = document.getElementById('gps-coords');
+    if (gpsLabel)  gpsLabel.textContent  = 'CARLA';
+    if (gpsCoords) gpsCoords.textContent = CARLA_TOWN + ' — waiting for vehicle feed';
+    loadCarlaRoads();
+    setInterval(pollVehiclePosition, VEHICLE_POLL_MS);
+    pollVehiclePosition();
+  } else {
+    startLocationTracking();
+  }
+}
+
+// ── CARLA VEHICLE FEED ───────────────────────────────────────────────────
+// Moves the car marker along the recorded route and, because it feeds
+// checkProximity(), makes proximity alerts work in CARLA mode. Before this the
+// dashboard could map potholes but never warn about them -- it demonstrated the
+// detection half of the product and none of the driver-alert half (issue #28).
+let vehicleFeedSeen = false;
+
+async function pollVehiclePosition() {
+  try {
+    const res = await fetch(VEHICLE_POSITION_URL, { cache: 'no-store' });
+    if (!res.ok) return;                       // no replay running yet
+    const p = await res.json();
+    if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return;
+
+    if (!vehicleFeedSeen) {
+      vehicleFeedSeen = true;
+      showToast('Vehicle feed connected — ' + (p.run || 'CARLA run'));
+    }
+
+    updateCarMarker(p.lat, p.lng, p.heading || 0);
+
+    // Deliberately not updateGPSDisplay(): that renders an accuracy figure in
+    // metres, and a replayed simulator fix has no accuracy to report. Inventing
+    // one would be the kind of plausible-looking number this project keeps
+    // finding and removing.
+    const el = document.getElementById('gps-coords');
+    if (el) {
+      const pct = typeof p.progress === 'number' ? ` · ${Math.round(p.progress * 100)}%` : '';
+      el.textContent = `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}${pct}`;
+    }
+    checkProximity(p.lat, p.lng);
+  } catch (err) {
+    // The file simply does not exist until a replay starts. Silent by design;
+    // loadCarlaRoads() is the one that shouts, because a missing road network
+    // is indistinguishable from a blank map.
+  }
+}
+
+// ── CARLA ROAD NETWORK ───────────────────────────────────────────────────
+// Draws the town exported by carla_sim/scenario/export_map.py. Markers, the
+// proximity maths and the PotholeGuard API are all untouched -- only the
+// basemap differs, which is what keeps this inside Rule 3.
+function loadCarlaRoads() {
+  fetch(CARLA_ROADS_URL, { cache: 'no-store' })
+    .then(res => {
+      if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+      return res.json();
+    })
+    .then(geojson => {
+      const props  = geojson.properties || {};
+      const bounds = props.bounds;
+
+      [mainMap, panelMap].forEach(map => {
+        map.data.addGeoJson(geojson);
+        map.data.setStyle(feature => ({
+          strokeColor: feature.getProperty('is_junction') ? '#3a4255' : '#2a3040',
+          strokeWeight: 4,
+          strokeOpacity: 1,
+          clickable: false,
+        }));
+        // Fit rather than guess a zoom: towns differ in size, and at (0, 0) the
+        // default zoom 14 would frame empty ocean beside the network.
+        //
+        // Deferred to the first 'idle': calling fitBounds before the map has been
+        // laid out silently half-works -- it centres correctly and then leaves the
+        // zoom alone. That produced a correctly-centred zoom 9 view in which the
+        // whole town was a single speck, which reads as "the export is broken"
+        // rather than "the fit ran too early". Refitting after layout gives 18.
+        if (bounds) {
+          const box = new google.maps.LatLngBounds(
+            { lat: bounds.lat_min, lng: bounds.lng_min },
+            { lat: bounds.lat_max, lng: bounds.lng_max }
+          );
+          // Fit TWICE, deliberately. Whether this works depends on whether the map
+          // has been laid out by the time the GeoJSON fetch resolves, and that is a
+          // race we do not control:
+          //   * already laid out -> the immediate call is correct and the second is
+          //     a harmless no-op;
+          //   * not yet laid out -> the immediate call centres correctly but leaves
+          //     the zoom alone, giving a zoom-9 view with the whole town as one
+          //     speck. It does however change the viewport, which makes the map go
+          //     idle, and the deferred call then fits properly at zoom 18.
+          // 'idle' alone is NOT enough: the map usually goes idle before the fetch
+          // returns, so a listener registered here waits for a next idle that never
+          // arrives without user interaction. That failed silently in a browser
+          // while passing every stubbed test.
+          const fit = () => map.fitBounds(box);
+          fit();
+          google.maps.event.addListenerOnce(map, 'idle', fit);
+        }
+      });
+
+      const town = props.town || CARLA_TOWN;
+      const n    = props.segment_count || geojson.features.length;
+      console.info('CARLA mode: drew ' + n + ' road segments for ' + town);
+      showToast('CARLA mode — ' + town);
+    })
+    .catch(err => {
+      // Loud, because a silent failure here looks identical to a town with no
+      // roads: a blank dark rectangle.
+      console.error('CARLA road network not loaded:', err.message);
+      showToast('CARLA roads missing — run export_map.py');
+    });
 }
 
 // ── CAR MARKER ────────────────────────────────────────────────────────────

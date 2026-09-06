@@ -6,6 +6,9 @@ __pycache__/
 *.egg-info/
 
 integration/pave_events.json
+# Runtime artifact, same as pave_events.json: written by carla_replay.py while a
+# replay is playing, meaningless outside that process.
+integration/vehicle_position.json
 
 pothole_detection_app/data/sample_images/*
 !pothole_detection_app/data/sample_images/README.md
