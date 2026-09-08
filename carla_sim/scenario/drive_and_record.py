@@ -43,6 +43,7 @@ import config                                    # noqa: E402
 from scenario import potholes as ph              # noqa: E402
 from scenario import route as rt                 # noqa: E402
 from scenario.impulse import ImpulseApplier, wheel_positions   # noqa: E402
+from scenario import tiles as tl              # noqa: E402
 from scenario.sensors import SensorRig           # noqa: E402
 
 logging.basicConfig(
@@ -61,6 +62,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ticks", type=int, default=config.MAX_TICKS)
     p.add_argument("--potholes", type=int, default=config.NUM_POTHOLES)
     p.add_argument("--seed", type=int, default=config.RANDOM_SEED)
+    p.add_argument("--level", choices=["A", "B"], default="A",
+                   help="A = scripted impulse (no custom geometry). "
+                        "B = spawn real pothole tiles and let physics do the work.")
+    p.add_argument("--control", action="store_true",
+                   help="Level B only: use the FLAT control tile everywhere. Same route, "
+                        "same speeds, no cavities -- run this to measure what the tile lip "
+                        "alone contributes, then diff against a normal Level B run.")
     p.add_argument("--no-camera", action="store_true", help="IMU only -- much faster")
     p.add_argument("--out", type=Path, default=None)
     return p.parse_args()
@@ -100,6 +108,7 @@ def main() -> int:
 
     vehicle = None
     rig = None
+    spawned_tiles = []
 
     try:
         settings = world.get_settings()
@@ -131,6 +140,15 @@ def main() -> int:
         )
 
         tracker = ph.PotholeTracker(placed, config.LABEL_WINDOW_S)
+        # Level B: real geometry on the road. The impulse machinery below is
+        # still constructed but never fired -- see the tick loop.
+        if args.level == "B":
+            spawned_tiles = tl.spawn_tiles(world, placed, control=args.control)
+            if not spawned_tiles:
+                logger.error("Level B requested but no tiles spawned. Is the PavePotholes "
+                             "package imported? Check for static.prop.potholetile_* blueprints.")
+                return 1
+
         applier = ImpulseApplier(
             vehicle, config.IMPULSE_DELTA_V, config.IMPULSE_TICKS,
             unload_ticks=config.UNLOAD_TICKS,
@@ -178,6 +196,12 @@ def main() -> int:
                 # --- pothole logic -------------------------------------------
                 wheels = wheel_positions(vehicle, config.WHEEL_POSITION_SCALE)
                 for pothole, strike in tracker.update(sim_time, wheels):
+                    if args.level == "B":
+                        # The hole is real. Applying an impulse on top would
+                        # contaminate the very signature this level exists to
+                        # measure. tracker.update() is still called because it
+                        # produces the ground-truth labels.
+                        continue
                     # EITHER/OR, not both. Stacking them drove az to -25 when the
                     # unload's whole purpose is to hold it near ZERO -- the two
                     # mechanisms fight, and the recovery then skips the FSM's
@@ -248,7 +272,11 @@ def main() -> int:
                 "imu_noise_gyro_stddev": config.IMU_NOISE_GYRO_STDDEV,
                 "camera_enabled": config.CAMERA_ENABLED,
                 "frames_saved": saved_frames,
-                "level": "A (scripted impulse, no custom geometry)",
+                "level": ("A (scripted impulse, no custom geometry)" if args.level == "A"
+                          else ("B (real tile geometry, FLAT CONTROL -- no cavities)"
+                                if args.control else "B (real tile geometry)")),
+                "tiles_spawned": len(spawned_tiles),
+                "control_run": bool(args.control),
             }, f, indent=2)
 
         logger.info("Done. %d hits, %d frames -> %s", len(tracker.hits), saved_frames, run_dir)
@@ -259,6 +287,10 @@ def main() -> int:
             rig.destroy()
         if vehicle is not None:
             vehicle.destroy()
+        if spawned_tiles:
+            # Level B tiles are world scenery, not attached to the vehicle --
+            # leaving them behind would silently contaminate the NEXT run.
+            logger.info("Destroyed %d Level B tiles.", tl.destroy_tiles(spawned_tiles))
         # Leaving the server synchronous makes it appear frozen to every other
         # client, including the CARLA window itself. Always restore.
         world.apply_settings(original_settings)

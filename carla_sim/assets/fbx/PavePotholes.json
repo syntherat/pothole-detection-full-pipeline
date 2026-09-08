@@ -1,0 +1,29 @@
+{
+  "maps": [],
+  "props": [
+    {
+      "name": "PotholeTile_Shallow",
+      "source": "./PotholeTile_Shallow.fbx",
+      "size": "Medium",
+      "tag": "static"
+    },
+    {
+      "name": "PotholeTile_Medium",
+      "source": "./PotholeTile_Medium.fbx",
+      "size": "Medium",
+      "tag": "static"
+    },
+    {
+      "name": "PotholeTile_Deep",
+      "source": "./PotholeTile_Deep.fbx",
+      "size": "Medium",
+      "tag": "static"
+    },
+    {
+      "name": "PotholeTile_FlatControl",
+      "source": "./PotholeTile_FlatControl.fbx",
+      "size": "Medium",
+      "tag": "static"
+    }
+  ]
+}
