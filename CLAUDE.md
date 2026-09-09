@@ -49,7 +49,7 @@ These are documented in full in [`context/40-known-issues-and-gaps.md`](context/
 - `pothole_map_ui/config.js` is gitignored. Copy `config.example.js` → `config.js` and add a Google Maps key, or the map renders an error box.
 - The map UI must be served over **http://**, not `file://`, or the `pave_events.json` poll fails on CORS.
 - Several paths are hardcoded to a specific Windows machine (`C:\Users\palso\OneDrive\Desktop\VITB\...`) and are dead.
-- **`context/`, `CLAUDE.md` and `AGENTS.md` are gitignored on purpose.** `git status` reads clean even with uncommitted context edits — that is expected, not a bug. Never propose committing them, and never reference them from the root `README.md`, which ships to people who will not have them.
+- **`context/`, `CLAUDE.md` and `AGENTS.md` are now TRACKED.** ~~Gitignored on purpose~~ — corrected 2026-09-09. Commits `d7ad253` and `47d88cc` removed them from `.gitignore`, so context edits **do** show in `git status` and **do** need committing with the change that caused them. `docs/` is the folder that is gitignored now. Still true: do not reference `context/` from the root `README.md`, which is written for people reading the repo without the knowledge base.
 
 ---
 

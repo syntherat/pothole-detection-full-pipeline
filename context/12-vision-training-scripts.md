@@ -203,6 +203,29 @@ the frame" heuristic. It makes the two-stage path *run*; it does not make it *wo
 ### `test_road_segmentation.py`
 Sanity-checks segmentation output quality before you rely on it.
 
+### `validate_road_seg.py` — the issue #30 diagnostic
+Scores `road_seg.pt` on the validation split of the dataset **recorded inside the checkpoint**, to
+separate the two faults that produce the same symptom: a domain gap against dash-camera geometry
+versus a loading/preprocessing fault on our side.
+
+```bash
+python scripts/validate_road_seg.py                 # repo copy, then the recorded path
+python scripts/validate_road_seg.py --data <path>/visible_road_seg_public_full/data.yaml
+```
+
+It reads `train_args` out of the checkpoint and evaluates at the **same `imgsz`**, so this script
+cannot itself introduce the mismatch it is looking for. Three reports, because "no `visible_road`"
+has more than one cause:
+
+| | Report | What it settles |
+|---|---|---|
+| 1 | `.val()` metrics **per class** | The `visible_road` row. The checkpoint records 7-class aggregates only, which hide exactly this |
+| 2 | Predict-mode sweep at conf 0.001 / 0.05 / 0.25 | `.val()` scores at 0.001; `get_road_mask()` passes **no** `conf`, so ultralytics' predict default of **0.25** applies. A healthy row 1 with an empty 0.25 row means the *gate* is the fault, and no mAP number would ever show it |
+| 3 | `get_road_mask()` fallback rate in-distribution | Issue #30's actual symptom, measured where the model should be strongest |
+
+**It does not substitute another dataset when the split is missing** — it prints the paths it tried
+and exits. A number produced against the wrong split would look like an answer (Rule 6).
+
 ---
 
 ## Dataset formats
@@ -238,4 +261,5 @@ class_id center_x center_y width height
 3. `python scripts/merge_datasets.py` — produces the `dataset_v3` that training expects.
 4. `python scripts/train_model.py --model small --hyperparams baseline` — **ask first (Rule 8)**; archive the existing `model/best.pt`.
 5. `python scripts/evaluate_model.py --data data/dataset_v3/data.yaml`.
-6. For the road model: `prepare_visible_road_public_dataset.py` → `train_multiclass_road_seg.py`.
+6. For the road model: `prepare_visible_road_public_dataset.py` → `train_multiclass_road_seg.py`,
+   then `validate_road_seg.py` to confirm `visible_road` actually fires before shipping the weights.

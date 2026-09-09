@@ -220,7 +220,68 @@ behaviour from "empty mask, safe fallback" to "mask covering roadside objects", 
 So the behaviour is identical on synthetic frames: empty mask, lower-60% crop, every time. This is now
 measured on two independent frame sets (16 real dash-cam, 45 CARLA) rather than one.
 
+**What the checkpoint itself records — read out of `road_seg.pt` on 2026-09-09, no GPU and no dataset
+needed.** The `.pt` is a zip; `best/data.pkl` was disassembled with `pickletools` (which parses opcodes
+without importing ultralytics), so these are the file's own recorded values, not a re-measurement.
+
+Training arguments:
+
+| | |
+|---|---|
+| architecture / task | `yolo11s-seg.yaml`, `segment`, `nc=7` |
+| `data` | `D:\epics\pothole_detect_app\data\visible_road_seg_public_full\data.yaml` |
+| `imgsz` / `batch` / `epochs` | **640** / 10 / 60 (`patience=30`, never triggered) |
+| optimiser | AdamW, `lr0=0.003`, cosine off, `close_mosaic=10` |
+| resumed from | `...\road_seg_multiclass_small_20260316_074142\weights\last.pt` — this was a **resumed** run |
+| augmentation | `mosaic=0.2`, `scale=0.35`, `fliplr=0.5`, `hsv_v=0.3`, `degrees=0`, `perspective=0` |
+
+Validation metrics at the saved (best == final, epoch 60) checkpoint, on the val split of that dataset:
+
+| | box | mask |
+|---|---|---|
+| precision | 0.5350 | 0.4978 |
+| **recall** | **0.3187** | **0.2837** |
+| mAP50 | 0.3475 | 0.3016 |
+| mAP50-95 | 0.2060 | 0.1463 |
+
+`fitness` 0.3523. The full 60-epoch curves are in the checkpoint too: everything plateaus by roughly
+epoch 30 and the last 30 epochs move mAP50(M) by 0.005.
+
+**What that does and does not settle.** It rules out the strongest form of the loading hypothesis —
+**this checkpoint is not inert.** It produced masks and scored a non-trivial mAP on its own validation
+split, so "the weights are broken" and "the file never had a working segmentation head" are both dead.
+It also confirms `imgsz=640`, which is what ultralytics' predict path defaults to, so **there is no
+`imgsz` mismatch** between training and how `two_stage_detection.py` calls it.
+
+**It does not settle issue #30**, for one specific reason: **these numbers are 7-class aggregates.**
+`visible_road` is one of seven, and a per-class row is what the issue turns on. A model that segments
+`vehicle` and `roadside_object` well and `visible_road` not at all would produce exactly this table.
+Note also that recall is **0.28–0.32 overall** — this is a weak model even in-distribution, which is
+consistent with what it does on dash-cam frames without explaining it.
+
+**The missing number, and how to get it.** `scripts/validate_road_seg.py` (added 2026-09-09) prints the
+per-class table, sweeps predict-mode confidence, and measures the in-distribution fallback rate. **It
+has not been run** — the `visible_road_seg_public_full` split is gitignored and is on neither this
+machine nor, at the recorded path, obviously on the Windows one: the checkpoint names
+`D:\epics\pothole_detect_app\...`, an older root than the current `D:\dev\PAVE\...`. Locate the
+split first; rebuilding it means re-downloading Cityscapes + ACDC + IDD + Mapillary.
+
+**One hypothesis is already dead.** The confidence gate is not the dash-cam explanation:
+`get_road_mask()` passes no `conf` and therefore runs at ultralytics' predict default of 0.25, but the
+0/16 and 0/45 measurements above were taken at **0.05** and still found nothing. The gate is worth
+measuring in-distribution to see the class's score distribution, not as a candidate fix.
+
 **Do not claim a two-stage architecture in any writeup until this is resolved.** Rule 6.
+
+**How this was handled in the patent disclosure (2026-09-09).** The restriction above was honoured
+rather than worked around. §6B of the disclosure describes **two co-equal embodiments** for producing
+the road mask — (i) the semantic class algebra, and (ii) the geometric road prior (the lower-60 %
+region) — and states that the centroid retention test is defined independently of which produced the
+mask. The geometric prior is written as a designed alternative, not as an error path. No sentence
+claims that segmentation is operative, and no performance figure is attached to either embodiment.
+The claim is drafted so that its independent limitation reads on the mask **however derived**, which
+means it reads on the shipped system as it actually behaves. Nothing in the filing asserts something
+this issue contradicts.
 
 ### 42. `SensorSession.check_row` calls `predict_proba` per row — whole-run analysis takes ~40 min — **[BUG]** · found 2026-09-08
 `integration/sensor_adapter.py:52` builds a **one-row `pd.DataFrame` and calls the RandomForest's
@@ -403,6 +464,72 @@ untestable** — the camera records clean tarmac. #18 still stands. Markers from
 produces a continuously-rising rebound, which the old FSM discarded just as surely as it discarded CARLA's.
 The detector fix was needed regardless, and finding it cost hours rather than the day a source build would
 have taken.
+
+### 43. No cross-vehicle aggregation — a second vehicle's non-detection is invisible — **[GAP]** · found 2026-09-09
+Asked during the patent work: *if vehicle A confirms a pothole and vehicle B does not, what happens?*
+**Nothing happens.** Traced through the code, not inferred:
+
+| | |
+|---|---|
+| `PotholeCandidateEvent` (`schema.py`) | has **no vehicle identifier field at all** |
+| `orchestrator.py:60` | `if not event.sensor_triggered: continue` — a non-triggering row leaves no record |
+| `orchestrator.py:95` | `if event.final_decision: send_to_pave(event)` — a rejected event writes nothing |
+| `pave_connector.py:31` | `events.append(record)` — appends unconditionally, never merges or dedupes |
+| `app.js:517` | dedupes on `event_id`, which is unique per event — two cars over one hole draw **two markers** |
+
+So vehicle A's positive becomes a permanent marker, vehicle B's negative is never recorded anywhere,
+and nothing is ever removed or decayed.
+
+**Why this is not simply a bug to fix.** The two observations are not symmetric. A positive means
+something physically happened to the suspension *and* the camera agreed. A negative has at least five
+causes, and only one of them means the pothole is gone:
+
+1. B never drove over it — wheel track is ~1.5 m inside a ~3.5 m lane
+2. B was slower — the FSM's gates are speed-coupled, and below the critical speed the wheel may not
+   lose contact at all
+3. B has different suspension — `Aeff = g(1 + ms/mu)` is explicitly vehicle-specific
+4. B's camera saw less — night, rain, occlusion, standing water
+5. **The pothole was repaired** ← only this one justifies removing the marker
+
+Absence of a strike is not evidence of absence of a pothole. Treating the two as symmetric votes would
+degrade the map every time a car changed lanes.
+
+**Design direction, in increasing cost:**
+- **Positive-only accumulation.** Ignore negatives. Cluster confirmed events spatially (~10-15 m, since
+  consumer GPS error of 3-5 m already exceeds a lane width). Raise confidence on repeat confirmations,
+  decay over time. Repair is then handled implicitly. No negative logic needed.
+- **Traversal-gated negatives.** Count a negative only where the vehicle demonstrably passed through
+  the anomaly footprint at a speed where detection was expected. Needs vehicle identity plus
+  lane-level positioning.
+- **Per-vehicle normalisation.** Use the quarter-car parameters to derive the `az` a given vehicle
+  should produce for a given depth, making cross-vehicle sensor evidence commensurable. Leans on the
+  project's strongest existing asset.
+
+**Missing to do any of it:** vehicle ID in the schema · spatial clustering · confidence accumulation ·
+decay/expiry · negative records · real GPS (currently mocked, `README.md:130`).
+
+**Patent note — the design above is already claimed, by VIT.** `IN 202241069806` (VIT University) is
+**GRANTED**, and its claim 1 was read in full on 2026-09-09. It recites an IMU-only system whose cloud
+platform *"marks the position of the potholes using all the data points with respect to the particular
+pothole"*, reports **"the confidence of that pothole being there"** along with intensity, warns the
+user of incoming potholes in advance, caches locally when there is no reception, and — the part that
+matters most here — uses **"the clustering technique … to deal with GPS and data inaccuracies in crowd
+sourced data."**
+
+That is the positive-only spatial-accumulation design recommended above, claimed almost point for
+point: spatial clustering to absorb GPS error, accumulated confidence per anomaly, advance warning.
+**Read that claim set before writing any multi-vehicle aggregation code.** It is held by a sister
+campus of this project's own applicant, which makes it an institutional question as well as a legal
+one.
+
+Also occupied: `US10967862B2` (Uber/Aurora) claims a **network computing system** that receives sensor
+logs from first vehicles and transmits **targeted labels on an updated localization map** to second
+vehicles — fleet-level anomaly sharing.
+
+**Per-vehicle suspension normalisation** — deriving the expected `az` for a given vehicle from its
+quarter-car parameters so cross-vehicle sensor evidence becomes commensurable — remains the least
+occupied direction, and leans on this project's strongest asset. It must be built before it can be
+claimed (Rule 6).
 
 ### 18. No frame↔sensor synchronisation — **[GAP]** ⭐ the big one
 The pipeline's foundational assumption — that a camera frame can be matched to a sensor row by time — has no implementation. `frame_provider.get_mock_frame()` picks an arbitrary stand-in image.

@@ -123,6 +123,13 @@ Understand the current geometry before touching them:
 - With `ai_score = 1.0` (typical for a promoted row), `vision_score >= 0.167` clears the bar. The veto is real, but easily satisfied.
 - If you set `SENSOR_WEIGHT >= FUSION_THRESHOLD`, you **destroy the veto** — a confident sensor reading alone confirms, and the vision stage becomes decorative.
 
+> ⚠️ **This relationship is now recited in a patent claim (2026-09-09).** The disclosure states that the
+> weights and threshold are chosen such that the vision contribution is *necessary* for confirmation —
+> which holds exactly while `SENSOR_WEIGHT < FUSION_THRESHOLD`. Setting them equal or inverted does not
+> merely weaken the design; it makes the filed claim stop reading on the system. The *values* are free
+> to move (the claim is worded as a property, not as 0.4/0.6/0.5) — the *inequality* is not. Agreed
+> with the fusion owner before filing. See [`04-current-state.md`](04-current-state.md).
+
 ### `FUSION_THRESHOLD` (0.5) — the final cut
 
 Raise for precision, lower for recall. Because vision dominates the blend, this mostly acts as a vision-confidence cut in disguise.

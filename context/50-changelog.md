@@ -41,6 +41,354 @@ Rules for entries:
 
 ---
 
+## 2026-09-09 — `road_seg.pt` interrogated from its own checkpoint; issue #30 diagnostic staged
+**Author:** Claude Opus 5 (Claude Code)
+**Scope:** `pothole_detection_app/scripts/`, context. **No existing code changed.**
+
+**What changed**
+- **New `pothole_detection_app/scripts/validate_road_seg.py`** — scores `road_seg.pt` on the validation
+  split of the dataset recorded inside the checkpoint. Three reports: per-class `.val()` metrics (the
+  `visible_road` row is the point), a predict-mode confidence sweep at 0.001 / 0.05 / 0.25, and the
+  in-distribution rate at which `get_road_mask()` falls through to the lower-60 % crop. Reads `imgsz`
+  out of the checkpoint so it cannot introduce the mismatch it is testing for, and **refuses to
+  substitute another dataset** when the split is missing.
+- `40-known-issues-and-gaps.md` — issue #30 gains the checkpoint's recorded training arguments and
+  validation metrics, and the statement of what they do and do not settle.
+- `02-repository-map.md` — the new script; a row for `data/visible_road_seg_public_full/`.
+- `12-vision-training-scripts.md` — a section for the script and its three reports; added to the
+  road-model retrain order.
+- `04-current-state.md` — "Item 3" of the patent handoff rewritten: half answered, half blocked.
+
+**Why**
+The user asked for `road_seg.pt` to be evaluated on its own training-distribution validation split —
+the diagnostic recorded in the previous entry for issue #30, and item 3 of the patent handoff, the one
+engineering task standing between limitation (iii) being *disclosed* and being *demonstrated*.
+
+**Contracts affected**
+None.
+
+**Context files updated**
+- `02-repository-map.md`, `04-current-state.md`, `12-vision-training-scripts.md`,
+  `40-known-issues-and-gaps.md`, this file.
+
+**Verified**
+- **The requested run did NOT happen.** This session ran on the **MacBook**
+  (`/Users/sounakpal/dev/pothole-detection-full-pipeline`), not the Windows box: Python 3.9.6, **no
+  torch and no ultralytics**, and `visible_road_seg_public_full` is absent — as are all four of its
+  source datasets. `find` over the home directory returned nothing for any of them. Nothing was
+  installed and no heavy operation was started (Rule 8).
+- **What was measured instead, and it is real data, not an estimate.** A `.pt` is a zip; `best/data.pkl`
+  was disassembled with `pickletools`, which parses pickle opcodes **without importing ultralytics or
+  torch**, so the recorded values could be read on a machine that cannot load the model at all.
+  Recovered: `yolo11s-seg`, task `segment`, `nc=7`, `imgsz=640`, `batch=10`, 60 epochs, AdamW
+  `lr0=0.003`, resumed from a `last.pt`, `data=D:\epics\pothole_detect_app\data\visible_road_seg_public_full\data.yaml`,
+  and the saved epoch's val metrics — box P 0.5350 / R 0.3187 / mAP50 0.3475, mask P 0.4978 / R 0.2837
+  / mAP50 0.3016, fitness 0.3523 — plus all 60 epochs of every curve.
+- `validate_road_seg.py` compiles under Python 3.9 (`py_compile`). **Its runtime behaviour is
+  unverified** — it has never executed, because there is nothing here to execute it against.
+
+**Notes for the next agent**
+- **Two of the three loading hypotheses in issue #30 are dead.** The checkpoint is not inert (it scored
+  mask mAP50 0.302 on that split) and there is no `imgsz` mismatch (640 trained, 640 is the predict
+  default `get_road_mask()` inherits by passing no `imgsz`).
+- **A third is also dead:** the predict-mode conf default of 0.25 is not the dash-cam explanation,
+  because the 0/16 and 0/45 measurements were taken at 0.05 and still found nothing.
+- **What survives is the per-class question**, and the recorded numbers cannot answer it: they are
+  7-class aggregates, and a model good at `vehicle`/`roadside_object` and blind to `visible_road` would
+  print exactly that table. Run the script.
+- **Find the dataset before planning anything.** The checkpoint names `D:\epics\pothole_detect_app\`,
+  an **older root** than today's `D:\dev\PAVE\`. Whether it survived on the Windows machine is
+  unverified. If it did not, rebuilding needs Cityscapes + ACDC + IDD + Mapillary — Rule 8 territory.
+- Overall recall of **0.28–0.32 in-distribution** is worth keeping in view: even the best case here is a
+  weak segmentation model, so "fix issue #30" may end up meaning "retrain", not "adjust inference".
+
+---
+
+## 2026-09-09 — Prior-art report delivered as .docx; patent work handed off
+**Author:** Claude Opus 5 (Claude Code)
+**Scope:** `docs/`, context. **No code changed.**
+
+**What changed**
+- **New `docs/PAVE-Prior-Art-Search-Report.docx`** — the deliverable for the patent agent. Seven
+  sections, eight tables: search coverage and its gaps, the three proposed claims, VIT's four
+  documents at claim level, international art, a conflict analysis per claim limitation, three
+  recommended actions with drafted claim language, and the known gaps.
+- `02-repository-map.md` — the four search artefacts added to the `docs/` table.
+- `04-current-state.md` — new "Patent work" section stating what is left, plus a patent-specific
+  resume prompt alongside the existing engineering one.
+
+**Why**
+The user asked for a structured summary of everything searched and every conflict, in a document they
+can hand to the patent agent, plus concrete direction on the three outstanding items.
+
+**The three outstanding items, and who owns them**
+1. **`IN 202541089617`'s claims** — InPASS returns "Please see the attachment" and does not serve the
+   PDF. It is the last unread claim set among the claim-(a) art. Patent agent, via the IPO e-register.
+2. **Narrow claim (a)** to late decision fusion with the necessity invariant. Draft language is in
+   §6.2 of the report, with a table showing why each of five references falls away under it.
+3. **Issue #30** — the only engineering item, and the highest-value one for the filing. Limitation
+   (iii) is legally clean but the segmentation checkpoint never fires, so it is disclosed rather than
+   demonstrated.
+
+**The diagnostic recorded for issue #30**
+Run `road_seg.pt` over the validation split of the dataset recorded inside the checkpoint
+(`data/visible_road_seg_public_full`). **Fires there → domain gap** against dash-camera geometry;
+fine-tune or accept the geometric prior as operative. **Does not fire even there → loading or
+preprocessing fault**; compare inference `imgsz` and preprocessing against the checkpoint's own
+recorded training args. The test is cheap and either outcome is actionable — which is why it should
+be the first thing run, before any fine-tuning is attempted.
+
+**Contracts affected**
+None.
+
+**Context files updated**
+- `02-repository-map.md`, `04-current-state.md`, this file.
+
+**Verified**
+- The .docx was built and its structure checked by unpacking it: 187 paragraphs, 8 tables, all seven
+  section headings present, and every key reference number and figure it cites confirmed in the text.
+- **Not verified: visual rendering.** Neither LibreOffice nor `pdftoppm` is installed on this machine,
+  so the document was validated structurally rather than by looking at rendered pages. Layout should
+  be eyeballed before it is sent.
+
+**Notes for the next agent**
+- **Do not re-run the prior-art searches.** They are complete to the limits recorded in §7 of the
+  report; the remaining gaps need a commercial database, not another pass at the free interfaces.
+- The patent-specific resume prompt is at the bottom of `04-current-state.md`.
+- Everything patent-related lives in `docs/`, which is gitignored. The filled disclosure form itself
+  is outside the repo, in the user's Downloads as `PAVE PATENT DOC-5.docx`.
+
+---
+
+## 2026-09-09 — Prior art read at CLAIM level; most of the threat dissolves
+**Author:** Claude Opus 5 (Claude Code)
+**Scope:** `docs/`, context. **No code changed.**
+
+**What changed**
+- `docs/PRIOR-ART-REGISTER.md` — new tier sections recording claim-level readings, superseding the
+  abstract-level assessments for six documents.
+
+**Why**
+The previous entry's register was built from abstracts. An abstract says what a patent is *about*;
+its claims define what it *covers*, and they are routinely much narrower. InPASS serves full
+specifications including claims, and Google Patents serves US claims, so the closest art was re-read
+properly.
+
+**What the claims actually say — six documents**
+
+| Document | Abstract suggested | Claims actually require | Verdict |
+|---|---|---|---|
+| IN 202441017108 (VIT, granted) | generic multi-sensor fusion | **radar / LiDAR** at multiple mounts; **Kalman / Bayesian / Dempster-Shafer** fusion *aligning viewpoints* into one road-surface representation | 🟢 spatial registration fusion |
+| IN 202441016273 (VIT, granted) | camera + CNN pothole detection | camera **activated only below a pre-set speed**; **classification** CNN (conv→pool→FC) | 🟢 no detector, no road constraint |
+| IN 202241069806 (VIT, granted) | IMU + cloud aggregation | **IMU only, no camera**; clustering for GPS inaccuracy; per-pothole confidence | 🟢 for the filing, 🔴 for issue #43 |
+| US9626763B1 (Lytx) | camera+IMU+GPS+ML+map | pothole determined **from sensor data**; video merely **stored**; inventive core is a **rating** | 🟢 vision not an input |
+| US10967862B2 (Uber/Aurora) | fleet detection with camera confirmation | a **network computing system** distributing **map labels** between fleet vehicles; no camera in claim 1 | 🟢 different subject matter |
+| IN 202641059359 (pending) | camera+IMU fusion reducing false detections | claim 1 is **one unlimited sentence**; claims 2-5 do not properly reference it | 🟡 unsustainable as filed |
+
+**A distinction worth keeping straight:** their **claims** govern whether PAVE would infringe; their
+**disclosure** governs whether PAVE is novel. IN 202641059359's claims are unsustainable, but its
+specification still teaches camera + accelerometer + gyroscope fusion to reduce false detections, and
+that counts against novelty regardless. **Verified by full-text search that it has no weighting, no
+decision threshold and no necessity property** — so limitation (v) survives.
+
+**Net effect on the filing**
+Claim (a) was the worst-placed claim after the abstract-level pass; it is now **substantially
+cleared**. Nothing read at claim level combines two independent modality verdicts numerically against
+a threshold. Claim (b) remains strongest. The only VIT document reaching PAVE's claims is the
+**pending** 202441059963, and only on limitation (ii), which §10.3 already concedes explicitly.
+
+**Contracts affected**
+None.
+
+**Context files updated**
+- `04-current-state.md` — VIT table replaced with claim-level verdicts; claim (a) rehabilitation recorded.
+- `40-known-issues-and-gaps.md` — issue #43's patent note rewritten: IN 202241069806's granted claim 1
+  recites spatial clustering for GPS inaccuracy **and** per-anomaly confidence, i.e. the exact design
+  that issue recommends. Read it before writing multi-vehicle code.
+- This file.
+
+**Verified**
+- Claim text quoted directly from InPASS specifications and Google Patents claim sections. Nothing in
+  the table above is inferred from an abstract.
+- **Not verified:** `IN 202541089617` — InPASS returns *"Claims: Please see the attachment"* and does
+  not serve the PDF as text. Its claim scope is unknown. Its abstract describes **early** fusion (raw
+  data merged before a single classifier), distinct from PAVE's late decision fusion, but unconfirmed.
+
+**Notes for the next agent**
+- **Read claims, not abstracts**, before treating any reference as a threat. Six of six re-reads came
+  back narrower than the abstract implied.
+- InPASS detail pages carry the full specification including claims, and need **no captcha** once any
+  query exists in the session. Google Patents pages render empty in the in-app browser but can be
+  fetched same-origin with `fetch()` and parsed for `section[itemprop=claims]`.
+- Issue #43's recommended design is claimed by a VIT sister campus. That is now the first thing to
+  check if multi-vehicle aggregation is ever picked up.
+
+---
+
+## 2026-09-09 — InPASS searched directly; three GRANTED VIT patents found that PATENTSCOPE missed
+**Author:** Claude Opus 5 (Claude Code)
+**Scope:** `docs/`, context. **No code changed.**
+
+**What changed**
+- **New `docs/INPASS-FINDINGS.md`** — full record of the Indian Patent Office search.
+- `docs/INPASS-SEARCH-PROTOCOL.md` — the prepared search plan (written before the user offered to enter
+  captchas, kept as the reference for what a patent agent should re-run).
+
+**Why**
+The earlier prior-art search could not reach InPASS — every query is gated behind a captcha, which this
+agent will not complete. The user entered each captcha; searches and result extraction were driven
+programmatically. **1,103 documents examined.**
+
+**What was found**
+**Four VIT documents, three of them GRANTED.** PATENTSCOPE had surfaced only two, both appearing
+pending:
+
+| | Status | Subject |
+|---|---|---|
+| IN 202441016273 (VIT Chennai) | **GRANTED** | Front camera + CNN, pothole location and type, alerting |
+| IN 202441017108 (VIT Chennai) | **GRANTED** | Multi-sensor **fusion**, road irregularity detection, driver alert + route alteration |
+| IN 202241069806 (VIT University) | **GRANTED** | IMU classification, cloud, position from multiple data points |
+| IN 202441059963 (VIT Chennai) | pending | Accelerometer triggers camera, image confirms, GPS, severity — the PAVE cascade |
+
+The applicant on this filing is VIT Bhopal.
+
+**Three InPASS traps that would silently halve any search**
+1. **Ticking Published + Granted returns GRANTED ONLY.** Pending is a separate collection
+   (`PublicationConnection`). `pothole` in the abstract: **23 granted, 262 pending.** An earlier search
+   in this session ticked both and saw 8 % of the field — corrected by re-running.
+2. **IPC codes are formatted differently per collection** — `G06V20/56` granted, `G06V0020560000` pending.
+3. **The IPC field returns 0 results in both formats** for a code that provably exists on indexed
+   records. The IPC sweep is the only vocabulary-independent search and remains **unrun**.
+
+**What survived**
+Limitations (iii) road-region constraint, (iv) result-set replacement, and (v) weighted fusion with
+vision necessary — none is anticipated by any Indian document examined. **Claim (b), the quarter-car
+physics, remains the strongest**: nothing found anywhere models suspension dynamics or estimates depth
+from wheel flight. **Claim (a) is crowded** — IN 202441017108 (granted), 202641059359 and 202541089617.
+
+**A distinction worth keeping**
+202541089617 fuses raw multi-modal sensor data **before** feature extraction and a single classifier —
+*early* fusion. PAVE combines two independent modality verdicts, each with its own confidence, by
+weights against a threshold — *late* fusion. On an abstract skim the two look identical.
+
+**Contracts affected**
+None.
+
+**Context files updated**
+- `04-current-state.md` — patent section rewritten with the four VIT documents and the three InPASS traps.
+- `40-known-issues-and-gaps.md` — issue #43's patent note corrected: IN 202241069806 is granted, and its
+  claims must be checked before any multi-vehicle aggregation work.
+- This file.
+
+**Verified**
+- Ran, not inferred: every count and status above was read from InPASS result pages or patent detail
+  records fetched directly. Pagination and detail pages need no captcha once a query exists, so full
+  result sets were retrieved.
+- **Not verified: claim sets.** Only abstracts and some specification text were read. Whether
+  IN 202441017108's granted claims actually reach PAVE's claim (a) cannot be answered from an abstract.
+
+**Notes for the next agent**
+- **Do not repeat the Published/Granted mistake.** Tick Published alone for pending art; run every
+  search twice, once per collection.
+- The Espacenet route is closed (Cloudflare bot verification) and Google Patents does not index India.
+- `docs/INPASS-FINDINGS.md` carries the per-document breakdown and which PAVE claim each bears on.
+
+---
+
+## 2026-09-09 — Patent disclosure prepared; prior-art search finds the vision architecture anticipated
+**Author:** Claude Opus 5 (Claude Code)
+**Scope:** `docs/` (new, gitignored), context. **No code changed anywhere.**
+
+**What changed**
+- **New `docs/`** — patent working files: drafted prose (§6B, §6E, §8(c), §9, §10.3), paste guides,
+  two colleague sign-off handouts, verification passes. Gitignored like `context/`.
+- The disclosure form itself is **outside the repo**, in the user's Downloads.
+- No source file, model, threshold or data shape was touched.
+
+**Why**
+The user asked for their vision contribution to be written into the VIT inventive disclosure form, and
+for the Smart Traffic template remnants left over from a previous project to be identified.
+
+**What the prior-art search found — this is the part that matters beyond the filing**
+
+1. **The two-stage vision architecture is anticipated.** Xing & Yang, *Journal of Imaging*, Feb 2026:
+   YOLO-family detector on unmasked frames, road segmentation applied afterwards to filter results.
+   Same idea, published before `two_stage_detection.py` was first committed (2026-08-06). They retain
+   by bounding-box overlap (τ=0.5) rather than a centroid point, and report ~33.7 % fewer false
+   positives. **Worth reading before any future work on the road mask.**
+2. **Two VIT applications occupy adjacent ground.** IN 202441059963 (VIT Chennai) discloses
+   accelerometer-triggers-camera-then-confirm — the PAVE cascade — without a road constraint or
+   weighted fusion. IN 202241069806 (VIT University) discloses crowd-sourced IMU pothole aggregation.
+   The applicant here is VIT Bhopal. Both were disclosed in the form and flagged to the agent.
+3. **Google Patents does not index India at all** — verified: "pothole detection" returns 49,289 hits
+   across CN/US/JP/KR/WO/EP/DE and zero IN. Indian art came from WIPO PATENTSCOPE (`CTR:IN`).
+   **InPASS was not searched** (CAPTCHA-gated) and Espacenet is behind bot verification.
+
+**How Rule 6 and issue #30 were honoured**
+Issue #30 says not to claim a two-stage architecture in any writeup. The disclosure describes the two
+mask-derivation paths as **co-equal embodiments** — semantic class algebra, and the geometric
+lower-60 % prior — and states the centroid test is independent of which produced the mask. The
+geometric prior is written as a designed alternative, not an error path. **No performance figure
+appears anywhere**: mAP 0.721 / precision 0.737 / recall 0.684 were deliberately excluded from the
+parameter-ranges section, since they are one model's scores on its own validation split, not system
+performance. §11 carries configuration values only.
+
+**New constraint on the fusion weights**
+The claim recites that the weights and threshold make vision *necessary* for confirmation. That holds
+exactly while `SENSOR_WEIGHT < FUSION_THRESHOLD` (0.4 < 0.5 today). **Retuning past that inequality
+would make the filed claim stop reading on the system.** Values may move; the inequality may not.
+Agreed with the fusion owner before filing. Recorded in `21-configuration-and-tuning.md`.
+
+**Contracts affected**
+None.
+
+**Also corrected: `context/` is no longer gitignored**
+Noticed while checking `git status` after these edits. Commits `d7ad253` and `47d88cc` removed
+`context/`, `CLAUDE.md` and `AGENTS.md` from `.gitignore`; `docs/` is what is ignored now. Both
+`CLAUDE.md` and `context/README.md` still asserted the old arrangement — *"gitignored on purpose…
+never propose committing them"* — which is now wrong in a way that would mislead every future agent.
+Corrected in both (Rule 1). **Practical effect: context edits now show in `git status` and belong in
+the same commit as the change that caused them.**
+
+**Context files updated**
+- `02-repository-map.md` — `docs/` added to the root tree with a file-by-file table.
+- `40-known-issues-and-gaps.md` — **new issue #43** (no cross-vehicle aggregation); issue #30 extended
+  with how the writeup restriction was satisfied.
+- `04-current-state.md` — new "Patent disclosure" section with both findings and the search-coverage
+  caveat; open decision #2 annotated; header date updated.
+- `21-configuration-and-tuning.md` — the `SENSOR_WEIGHT < FUSION_THRESHOLD` constraint.
+- `11-vision-pipeline.md` — issue #30 correction; the segmentation branch runs but is never effective.
+- `CLAUDE.md` and `context/README.md` — version-control status corrected.
+- This file.
+
+**Verified**
+- Read, not inferred: all 18 pages of the original disclosure PDF including both embedded page-7
+  images; the 13-figure folder hash-matched against the source docx and against the final document;
+  `two_stage_detection.py`, `fusion.py`, `orchestrator.py`, `sensor_adapter.py`, `schema.py`,
+  `pave_connector.py`, `app.js`; both model checkpoints unpickled for their recorded training args
+  (`best.pt` → `pothole_medium_conservative_20260204_1859`, dataset_v3; `road_seg.pt` → resumed from
+  an earlier run, confirming the docx's caveat).
+- Xing & Yang was read via the **PubMed Central mirror** — MDPI returns HTTP 403. Substance confirmed
+  (overlap ratio τ=0.5, detector on unmasked images, post-detection filtering) but **the citation
+  should be checked against the publisher PDF before it is relied on in a legal document.**
+- **Not verified:** the §6E camera rate of 20 Hz comes from `15-carla-testbed-plan.md:94`, not from a
+  recorded run — `carla_sim/out/` does not exist on the Mac this ran on.
+
+**Notes for the next agent**
+- **`docs/PAVE-two-stage-vision-detector.docx` (2026-08-31) is stale and misleading.** It describes
+  two-stage detection as working and calls the empty-mask fallback a rare edge case. Per issue #30 it
+  is the only path. Do not use it as a source without checking against `11-vision-pipeline.md` and #30.
+- `11-vision-pipeline.md` said the segmentation half "is live" (last verified 2026-08-19, before #30).
+  **Corrected this session** with an issue #30 callout — the branch runs but has never produced a
+  non-empty mask on any tested imagery, so steps 4-6 of `get_road_mask()` describe code that executes
+  and does nothing. `CLAUDE.md` and #30 already carried the correction; that file now does too.
+- Issue #43 was found by a question the user asked, not by reading code first. The answer required
+  tracing five files. Worth knowing that the map has no dedup, no decay, and no vehicle identity.
+- Outstanding on the filing, none of it code: name the two pothole datasets in §12 (the repo records
+  them only as "kaggle and roboflow"); have a patent agent re-run §9 on InPASS.
+
+---
+
 ## 2026-09-08 — Level B P3: vision stage run on real pothole frames — 0/45 confirmed, domain gap measured
 **Author:** Claude Opus 5 (Claude Code)
 **Scope:** `carla_sim/analyse_run.py`, context. No change to the vision or integration code.

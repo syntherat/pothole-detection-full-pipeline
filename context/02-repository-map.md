@@ -15,6 +15,7 @@ pothole-detection-full-pipeline/
 ├── README.md                  [C] Human-facing README. Rewritten 2026-08-20 to match reality
 ├── .gitignore                 [C] Root ignores; excludes secrets, venvs, pave_events.json
 ├── context/                   [C] This knowledge base
+├── docs/                      [G] Patent disclosure working files — see below
 ├── carla_sim/                 [C] CARLA testbed (Level A runs; Level B assets started)
 ├── integration/               [C] Cascade orchestrator — the glue layer
 ├── pothole_detect_physics/    [C] Sensor / physics / classical-ML subsystem
@@ -23,6 +24,28 @@ pothole-detection-full-pipeline/
 ```
 
 **Root `.gitignore` excludes:** `venv/`, `__pycache__/`, `.pytest_cache/`, `integration/pave_events.json`, `pothole_detection_app/data/sample_images/*` (except its `README.md`), `**/Ultralytics/settings.json`, `.env`, `*.key`, `*.log`, `pothole_detection.log`, `pothole_map_ui/config.js`, IDE dirs.
+
+### `docs/` — patent disclosure working files  **[G]**
+
+Added 2026-09-09. **Gitignored** (`.gitignore:34`), like `context/` — these are confidential filing
+materials and local to the working machine. Not part of the running system; no code reads them.
+
+| File | What it is |
+|---|---|
+| `PAVE PATENT DOC.pdf` | The original disclosure form, before this session's edits |
+| `PAVE-two-stage-vision-detector.docx` | Engineering writeup of the vision subsystem, dated 2026-08-31. **Stale on issue #30** — it describes two-stage detection as working |
+| `PAVE-vision-figures/` | 13 PNGs. 12 are used in the disclosure; `chart4-final-scores.png` is deliberately unused |
+| `PAVE-patent-6B-6E-draft.md` | Drafted patent prose — §6B, §6E, §8(c), §9, §10.3 |
+| `PAVE-patent-PASTE-GUIDE.md` | Where each block goes, plus the amended-claim package |
+| `HANDOUT-physics-6A.md`, `HANDOUT-fusion-6C.md` | Sign-off requests sent to the §6A and §6C owners; **both approved** |
+| `DO-THIS-*.md`, `VERIFY-DOC-*.md`, `EXPLAINER-*.md` | Step-by-step paste instructions and verification passes |
+| `INPASS-SEARCH-PROTOCOL.md` | The eight prepared InPASS searches, for an agent to re-run |
+| `INPASS-FINDINGS.md` | Full record of the Indian Patent Office search — 1,103 documents |
+| `PRIOR-ART-REGISTER.md` | Every document examined, tiered, with claim-level verdicts |
+| **`PAVE-Prior-Art-Search-Report.docx`** | **The deliverable for the patent agent** — coverage, conflicts, three recommended actions |
+
+**The filled disclosure form itself is not in the repo** — it lives in the user's Downloads as
+successive `PAVE PATENT DOC-N.docx` revisions. `docs/` holds only the source material and instructions.
 
 ---
 
@@ -147,6 +170,7 @@ Detail: [`11-vision-pipeline.md`](11-vision-pipeline.md), [`12-vision-training-s
 | `predict_script.py` | [C] | Minimal single-image predict |
 | `download_road_model.py` | [C] | Fetches `yolov8s-seg.pt`, copies it to `model/road_seg.pt` |
 | `test_road_segmentation.py` | [C] | Sanity-checks segmentation output |
+| `validate_road_seg.py` | [C] | Scores `road_seg.pt` **per class** on its own training-distribution val split, sweeps predict-mode confidence, and measures the lower-60 % fallback rate. The issue #30 diagnostic |
 
 ### Data and output directories — all absent on a fresh clone
 | Path | | Notes |
@@ -154,6 +178,7 @@ Detail: [`11-vision-pipeline.md`](11-vision-pipeline.md), [`12-vision-training-s
 | `data/raw/{images,annotations}/` | [G] | VOC XML source data |
 | `data/dataset_v2/`, `data/dataset_v3/` | [G] | YOLO-format splits. `train_model.py` reads **v3**; `evaluate_model.py` reads **v2** |
 | `data/visible_road_seg_public/` | [G] | Segmentation dataset used by `train_multiclass_road_seg.py` |
+| `data/visible_road_seg_public_full/` | [G] | The split `road_seg.pt` was **actually trained on**, per the path recorded inside the checkpoint. Absent on both the Mac and, unverified, possibly the Windows box — the recorded path is `D:\epics\pothole_detect_app\...`, an **older root** than `D:\dev\PAVE\...`. `validate_road_seg.py` and `test_detection.py:40` both expect it |
 | `data/sample_images/` | [C] | Holds a tracked `README.md`; the photos themselves are gitignored. Preferred source of stand-in frames for the mock provider, with fallbacks to `input/` and the dataset splits |
 | `input/`, `output/` | [G] | Runtime IO. `output/` is auto-created by `ensure_dirs()` |
 | `training_results/`, `evaluation_results/`, `runs/` | [G] | Ultralytics artefacts |

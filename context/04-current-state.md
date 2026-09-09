@@ -3,7 +3,9 @@
 **Scope:** where the project actually stands, what was done most recently, and what to do next.
 **This file is mutable** — unlike [`50-changelog.md`](50-changelog.md), which is append-only history,
 this one gets rewritten to reflect the present. Update it when the situation changes.
-**Last updated:** 2026-09-08 — Level B P3 done: vision run recorded and scored. `best.pt` confirms **0/45** on real pothole frames (peak 0.302 vs a 0.35 gate). Fine-tuning is now the critical path.
+**Last updated:** 2026-09-09 (second session) — the issue #30 diagnostic was **half-answered from the
+checkpoint itself** and the other half is staged but unrunnable here; see "Item 3" below. Earlier that day:
+patent disclosure prepared; prior-art search found that the vision architecture is anticipated (Xing & Yang, Feb 2026) and that two VIT applications cover adjacent ground. See the patent section below. No code changed. Level B P3 remains the technical state: `best.pt` confirms **0/45** on real pothole frames (peak 0.302 vs a 0.35 gate), and fine-tuning is still the critical path.
 
 ---
 
@@ -216,6 +218,78 @@ From `PAVE_v2_change_log_REVIEWED.docx` (the user's document; **A and B are done
 
 ---
 
+## Patent disclosure — prepared 2026-09-09, and what the prior-art search found
+
+The PAVE inventive disclosure form was completed this session. Working files are in `docs/`
+(gitignored); the filled form itself lives outside the repo. **Two findings from the prior-art search
+matter to the project, not just to the filing.**
+
+**1. The vision architecture is not novel as such.** Xing & Yang, *Journal of Imaging*, February 2026
+disclose the same arrangement PAVE uses — a YOLO-family detector run on unmasked frames, with road
+segmentation applied afterwards to filter the results — differing only in that they retain a detection
+by bounding-box area overlap (τ=0.5) rather than by a centroid point. It was published **before**
+`two_stage_detection.py` was written (first committed 2026-08-06). Their reported result is a ~33.7 %
+false-positive reduction. **Worth reading if the road mask is ever revisited** — it is the same idea,
+measured.
+
+**2. FOUR VIT documents occupy adjacent ground — three of them GRANTED.**
+Corrected and expanded 2026-09-09 after searching InPASS directly; PATENTSCOPE had shown only two, and
+had not shown that any were granted.
+
+**Claim sets were subsequently read** (InPASS serves full specifications). The abstracts overstated the
+threat in every case:
+
+| | Status | What the CLAIMS cover | Verdict |
+|---|---|---|---|
+| **IN 202441017108** (VIT Chennai) | GRANTED | **Radar / LiDAR** at multiple mount points; **Kalman / Bayesian / Dempster-Shafer** fusion *aligning viewpoints* into one road-surface representation | 🟢 spatial registration fusion — wrong sensors, wrong fusion |
+| **IN 202441016273** (VIT Chennai) | GRANTED | Camera **activated only below a pre-set speed**; **classification CNN** (conv → pool → FC); compare to stored dataset | 🟢 no detector, no road constraint |
+| **IN 202241069806** (VIT University) | GRANTED | **IMU only, no camera.** Cloud aggregation; **clustering for GPS inaccuracy**; per-pothole confidence | 🟢 for the filing · 🔴 **occupies issue #43** |
+| **IN 202441059963** (VIT Chennai) | pending | Accelerometer → **triggers image capture** → image analysed → GPS → severity | 🔴 anticipates limitation (ii) — already conceded in §10.3 |
+
+The applicant on this filing is VIT Bhopal. All four were disclosed in the form. **The three granted
+ones are distinguishable at claim level; only the pending one reaches PAVE's claims, and only on the
+limitation the disclosure already concedes.**
+
+**What survives as distinguishing:** the road-region constraint on the visual result, replacement of
+the detection result set (so the constraint reaches fusion rather than only the display), and the
+fusion invariant that `SENSOR_WEIGHT < FUSION_THRESHOLD` makes vision necessary for confirmation. That
+last one is the strongest single element and is recited in the claim — **if the fusion weights are
+ever retuned so that `SENSOR_WEIGHT >= FUSION_THRESHOLD`, the claim stops reading on the system.**
+Noted in [`21-configuration-and-tuning.md`](21-configuration-and-tuning.md).
+
+**Claim-level reading also largely rehabilitated the fusion claim.** `US9626763B1` (Lytx) determines
+the pothole *from sensor data* and only **stores** video afterwards — vision is not an input, and the
+inventive core is a driving-avoidability / visibility **rating**. `US10967862B2` (Uber/Aurora) claims a
+**network computing system** distributing map labels between fleet vehicles — no camera, no fusion in
+claim 1. `IN 202641059359`'s claim 1 is a single unlimited sentence that would not survive examination,
+though **its disclosure still counts against novelty** — claims govern infringement, disclosure governs
+novelty, and those are different questions. **Nothing read at claim level combines two independent
+modality verdicts numerically against a threshold.**
+
+**One claim set remains unread:** `IN 202541089617` — InPASS returns *"Claims: Please see the
+attachment"*, a PDF it does not serve as text. Its abstract describes **early** fusion (raw data merged
+before one classifier), architecturally distinct from PAVE's late decision fusion, but that should be
+confirmed from the attachment.
+
+**InPASS was searched on 2026-09-09** — the user entered each captcha, and the searches and result
+extraction were driven programmatically. **1,103 documents examined** across the granted and pending
+collections. Full detail in `docs/INPASS-FINDINGS.md`. Three method traps worth knowing:
+
+1. **Ticking Published + Granted returns GRANTED ONLY.** The pending set is a separate collection
+   (`PublicationConnection`) reachable only by ticking Published alone. An abstract search for
+   `pothole` returns 23 granted and **262 pending** — searching "both" sees 8 % of the field.
+2. **The two collections format IPC codes differently** — `G06V20/56` on granted records,
+   `G06V0020560000` on pending ones.
+3. **The InPASS IPC field returned 0 results in both formats** for a code that provably exists on
+   indexed records. The IPC sweep — the only vocabulary-independent search — remains **unrun**, and is
+   the largest gap. A commercial database is needed.
+
+Google Patents does not index India at all (verified: a "pothole detection" query returns 49,289
+results across CN/US/JP/KR/WO/EP/DE and zero IN). Espacenet is behind Cloudflare bot verification and
+was not searched.
+
+---
+
 ## Open decisions — for the user, not an agent
 
 1. **Which GUI is the product?** (issue #23) `main_enhanced.py` and `pothole_app_filtered.py` share no code
@@ -223,6 +297,10 @@ From `PAVE_v2_change_log_REVIEWED.docx` (the user's document; **A and B are done
 2. **Is the system "two-stage"?** (issue #30) `road_seg.pt` predicts `visible_road` on **0/16** dashcam
    frames; every detection so far came from the lower-60 % crop fallback. Either fix it, drop the stage, or
    describe the system accurately — but do not claim two-stage in a writeup until one of those happens.
+   **Still open.** The patent disclosure took the third route: it describes both mask-derivation paths as
+   co-equal embodiments and attaches no performance claim to either, so nothing was asserted that #30
+   contradicts. That resolved the *writeup* problem, not the underlying one — the checkpoint still never
+   fires `visible_road`. See #30 for how the wording was handled.
 3. **400 Hz or 100 Hz?** Unchanged. 400 keeps the model untouched; 100 needs retuned air-time gates.
 4. ~~Map rendering for CARLA~~ — **DECIDED.** CARLA mode, `?mode=carla`, real-world path untouched.
 
@@ -260,9 +338,75 @@ crashes CARLA, and the crash masquerades as a client timeout).
 
 ---
 
+## Patent work — where it stands, and what is left
+
+**The disclosure form is text-complete.** `PAVE PATENT DOC-5.docx` (in the user's Downloads, not the
+repo) carries §6B, §6E, §8 claim (c) as amended, §9, §10.3, §11, §12, the workflow bullets and all 12
+figures. The Smart Traffic template remnants are gone. Both colleague sign-offs (§6A physics, §6C
+fusion) are in and approved.
+
+**Three things remain, none of them repo code:**
+
+| | Item | Owner |
+|---|---|---|
+| 1 | Pull `IN 202541089617`'s claims from the IPO e-register file wrapper — InPASS will not serve the PDF | patent agent |
+| 2 | Narrow claim (a) to late decision fusion with the necessity invariant — draft language is in the report | patent agent |
+| 3 | **Resolve issue #30** so limitation (iii) is demonstrated rather than only disclosed | **this repo** |
+| 4 | Name the two pothole datasets in §12 — the repo records them only as "kaggle and roboflow" | whoever built `dataset_v3` |
+
+**Item 3 is the only engineering task. Half of it is now answered; the other half is blocked on a
+missing dataset.**
+
+**Answered, without running anything.** `road_seg.pt` is a zip, and its `data.pkl` was disassembled
+with `pickletools` to recover the arguments and metrics the training run wrote into it. Two of the
+three loading/preprocessing hypotheses die immediately:
+
+- **The checkpoint is not inert.** It records mask mAP50 **0.302** and box mAP50 **0.348** on the val
+  split of `visible_road_seg_public_full` at the saved epoch. It segmented that data.
+- **There is no `imgsz` mismatch.** It trained at **640**, which is also ultralytics' predict default,
+  which is what `get_road_mask()` gets by not passing one.
+- Recall is **0.28–0.32** even in-distribution, so this is a weak model regardless.
+
+Full table, curves and caveats: issue #30 in [`40-known-issues-and-gaps.md`](40-known-issues-and-gaps.md).
+
+**Blocked.** Those figures are **7-class aggregates**, and issue #30 turns on the `visible_road` row
+specifically — a model strong on `vehicle` and `roadside_object` and blind to `visible_road` prints
+exactly that table. `pothole_detection_app/scripts/validate_road_seg.py` (new, 2026-09-09) produces the
+per-class row plus a predict-mode confidence sweep and the in-distribution fallback rate. **It has not
+been run and cannot be run from a machine without the dataset.**
+
+**What the next agent has to do first: find the split.** The checkpoint names
+`D:\epics\pothole_detect_app\data\visible_road_seg_public_full\` — note `D:\epics\`, an **older
+root** than today's `D:\dev\PAVE\`. It is gitignored, absent on the MacBook, and its presence on the
+Windows box is **unverified**. If it is gone, rebuilding means re-downloading Cityscapes + ACDC + IDD +
+Mapillary through `prepare_visible_road_public_dataset.py` — hours, registered accounts, and a Rule 8
+conversation before starting.
+
+Either outcome is still useful: a fix makes limitation (iii) demonstrable, a confirmed domain gap
+justifies the geometric-prior embodiment already disclosed in §6B.4.
+
+Deliverable for the agent: **`docs/PAVE-Prior-Art-Search-Report.docx`**.
+
+---
+
 ## Starting a fresh chat
 
-Paste something like this:
+**For patent work**, paste this:
+
+> Continuing the PAVE patent filing. Read `context/00-RULES.md`, `context/README.md` and
+> `context/04-current-state.md` first, then `docs/PRIOR-ART-REGISTER.md` and
+> `docs/PAVE-Prior-Art-Search-Report.docx`.
+>
+> State: the disclosure form is text-complete with all figures; both colleague sign-offs are in. A
+> prior-art search covering InPASS (1,103 Indian documents), PATENTSCOPE, Google Patents, USPTO and
+> the literature is done, and six of the closest references were read at claim level. Claim (b)
+> (quarter-car physics) is the strongest; claim (a) was largely cleared once claims rather than
+> abstracts were read; limitation (ii) of claim (c) is anticipated by IN 202441059963 and is
+> conceded in §10.3.
+>
+> **Do not re-run the searches.** What remains is [your goal].
+
+**For engineering work**, paste something like this:
 
 > Continuing the PAVE pothole detection project at `D:\dev\PAVE\pothole-detection-full-pipeline` on Windows.
 > Read `context/00-RULES.md`, `context/README.md` and `context/04-current-state.md` first, then tell me what

@@ -57,20 +57,21 @@ This directory is the project's **machine-readable knowledge base**. It exists s
 
 ---
 
-## This directory is not in version control
+## Version control status — CHANGED 2026-09-09
 
-The root `.gitignore` excludes `context`, `CLAUDE.md` and `AGENTS.md`. **This is deliberate** — confirmed
-by the project owner on 2026-08-19. The knowledge base is local to the working machine and does not travel
-with a clone.
+**This directory is now tracked in git.** It was previously excluded, and older notes here and in
+`CLAUDE.md` said so; commits `d7ad253` and `47d88cc` removed `context/`, `CLAUDE.md` and `AGENTS.md`
+from `.gitignore`. `docs/` (patent working files) is what is gitignored now.
 
-Consequences to keep in mind:
+Consequences:
 
-- `git status` will read **clean** even when you have edited context files. That is expected, not a bug.
-- Rule 5 still applies in full. These files are still the project's knowledge base; they are simply kept
-  outside the tracked repo.
-- Do not `git add -f` them, and do not propose un-ignoring them.
-
----
+- `git status` **will** show context edits. That is expected.
+- Rule 5 now has a second half: a context update belongs in the **same commit** as the change that
+  caused it, not merely in the same working session.
+- The knowledge base travels with a clone. Anything written here is visible to whoever clones the repo
+  — worth remembering before recording anything sensitive.
+- Still true: do not reference `context/` from the root `README.md`. That file is written for readers
+  who will not work through the knowledge base.
 
 ## Maintaining this directory
 

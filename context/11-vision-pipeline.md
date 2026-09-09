@@ -2,7 +2,7 @@
 
 **Scope:** `pothole_detection_app/app/` and its entry points — YOLO detection, two-stage road masking, both Tkinter GUIs, the shared utils.
 **Training and dataset scripts are in [`12-vision-training-scripts.md`](12-vision-training-scripts.md).**
-**Last verified against:** commit `3c586b8` (2026-08-19).
+**Last verified against:** commit `3c586b8` (2026-08-19). **Partially corrected 2026-09-09** — see the issue #30 callout under "The shipped road segmentation model".
 
 ---
 
@@ -90,7 +90,17 @@ create_two_stage_detector(pothole_model_path="model/best.pt",
 - Loads the road model only if the path is truthy **and** exists; on any load exception it logs a warning and continues.
 - `self.use_road_seg` is the single flag that everything else branches on.
 
-`model/road_seg.pt` **is present**, so `use_road_seg` is `True` and the segmentation half is live. If you ever see `Road segmentation model not found` in the logs, the file has gone missing and detection has silently dropped to unfiltered single-stage — historically the most common source of "why are there so many false positives".
+`model/road_seg.pt` **is present**, so `use_road_seg` is `True` and the segmentation branch runs. If you ever see `Road segmentation model not found` in the logs, the file has gone missing and detection has silently dropped to unfiltered single-stage — historically the most common source of "why are there so many false positives".
+
+> ⚠️ **CORRECTED 2026-09-09 — the segmentation half is NOT effective.** This section previously said it
+> was "live". The branch executes, but the checkpoint predicts `visible_road` on **0/16** dash-camera
+> frames and **0/45** CARLA frames, even at conf=0.05. So `road_mask.max() == 0` every time and control
+> reaches the empty-mask fallback at `two_stage_detection.py:156`, which substitutes the lower 60 % of
+> the frame. **Every pothole detection this system has produced came from that crop, not from
+> segmentation.** Steps 4 to 6 below describe code that runs but has never produced a non-empty mask on
+> any tested imagery. Full measurement in
+> [`40-known-issues-and-gaps.md`](40-known-issues-and-gaps.md) issue #30 (Rule 1: code wins on
+> behaviour).
 
 ### Class-name resolution
 
