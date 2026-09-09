@@ -13,7 +13,11 @@ and inventing a GPS track, it looks up:
 
 Reads two files from a run directory:
 
-    frame_index.csv   frame,timestamp,path
+    frame_index.csv   frame,timestamp,path,cam_x,cam_y,cam_z,cam_pitch,cam_yaw,cam_roll
+                      The six pose columns are the CAMERA's world transform at capture time
+                      (added 2026-09-08, for projecting known 3D pothole positions into the
+                      image). Appended after `path`; this module reads by name, so runs
+                      recorded before that date still load unchanged.
     gnss.csv          timestamp,frame,latitude,longitude,altitude
 
 Both use the same clock as sensors.csv (seconds from the start of recording),

@@ -39,6 +39,20 @@ TILE_MEDIUM = "static.prop.potholetile_medium"
 TILE_DEEP = "static.prop.potholetile_deep"
 TILE_FLAT_CONTROL = "static.prop.potholetile_flatcontrol"
 
+# Bowl geometry per variant, for anything that needs the tile's real opening
+# rather than Pothole.radius_m (which is the ROUTE pothole's 0.35 m marker, not
+# the cavity -- projecting labels from it would size every box wrong).
+# SOURCE OF TRUTH is VARIANTS in carla_sim/assets/generate_pothole_meshes.py.
+# Mirrored here because that script lives outside any package and is not
+# importable; if you change the meshes, change this too.
+TILE_GEOMETRY = {
+    TILE_SHALLOW:      {"bowl_radius": 0.22, "bowl_depth": 0.04, "thickness": 0.05},
+    TILE_MEDIUM:       {"bowl_radius": 0.28, "bowl_depth": 0.07, "thickness": 0.08},
+    TILE_DEEP:         {"bowl_radius": 0.34, "bowl_depth": 0.11, "thickness": 0.12},
+    TILE_FLAT_CONTROL: {"bowl_radius": 0.00, "bowl_depth": 0.00, "thickness": 0.08},
+}
+TILE_SIZE = 1.60  # square tile edge, same source of truth as above.
+
 # Severity is a 0-1 scalar on Pothole, not a depth. Map it onto the three real
 # depths so a run contains a spread of event strengths, as Level A did.
 SEVERITY_TO_TILE = (
@@ -55,7 +69,8 @@ def tile_for_severity(severity: float) -> str:
     return TILE_DEEP
 
 
-def spawn_tiles(world: "carla.World", potholes, control: bool = False) -> list:
+def spawn_tiles(world: "carla.World", potholes, control: bool = False,
+                manifest_out: list | None = None) -> list:
     """
     Spawn one tile per pothole, aligned to the lane it sits in.
 
@@ -98,6 +113,25 @@ def spawn_tiles(world: "carla.World", potholes, control: bool = False) -> list:
         except RuntimeError:
             pass
         spawned.append(actor)
+
+        # Record the transform we ACTUALLY spawned at, not the pothole's nominal
+        # position: z comes from the lane waypoint (road height, never 0.0 as in
+        # ground_truth.json) and yaw from the lane. Anything projecting these
+        # tiles into camera space needs the real values.
+        if manifest_out is not None:
+            geom = TILE_GEOMETRY.get(blueprint_id, {})
+            manifest_out.append({
+                "pothole_id": getattr(pothole, "pothole_id", None),
+                "blueprint": blueprint_id,
+                "x": transform.location.x,
+                "y": transform.location.y,
+                "z": transform.location.z,
+                "pitch": transform.rotation.pitch,
+                "yaw": transform.rotation.yaw,
+                "roll": transform.rotation.roll,
+                "tile_size": TILE_SIZE,
+                **geom,
+            })
 
     # Advance one tick so the spawns register. MUST branch on the mode: the
     # recorder drives the world SYNCHRONOUSLY, and in that mode wait_for_tick()

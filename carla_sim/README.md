@@ -57,7 +57,7 @@ python carla_sim/scenario/drive_and_record.py --no-camera --ticks 40000
 out/run_<ts>/
 ├── sensors.csv       timestamp,ax,ay,az,gx,gy,gz,speed,label   ← contract #1, EXACTLY
 ├── gnss.csv          real lat/lng from sensor.other.gnss
-├── frame_index.csv   frame → timestamp → path   ← this is what closes issue #18
+├── frame_index.csv   frame → timestamp → path → camera world pose   ← this closes issue #18
 ├── frames/<frame>.png
 ├── ground_truth.json pothole positions + which were actually driven over
 └── run_meta.json     config snapshot for reproducibility

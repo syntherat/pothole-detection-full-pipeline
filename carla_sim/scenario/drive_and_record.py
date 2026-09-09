@@ -9,9 +9,17 @@ Output (see context/20-data-contracts.md):
     out/run_<ts>/
       sensors.csv       timestamp,ax,ay,az,gx,gy,gz,speed,label   <- contract #1, EXACTLY
       gnss.csv          timestamp,frame,latitude,longitude,altitude
-      frame_index.csv   frame,timestamp,path                      <- closes issue #18
+      frame_index.csv   frame,timestamp,path,cam_x,cam_y,cam_z,cam_pitch,cam_yaw,cam_roll
+                                                                <- closes issue #18; the pose
+                        columns are the CAMERA's world transform AT CAPTURE TIME, taken from
+                        image.transform rather than vehicle.get_transform(). Images drain
+                        asynchronously, so a transform read at drain time lags the exposure --
+                        which matters most on impact frames, exactly where labels must be right.
+                        Appended after `path`, so csv.DictReader consumers are unaffected.
       frames/<frame>.png
       ground_truth.json pothole positions + which were actually hit
+      tiles.json        Level B tiles AS SPAWNED (real road z, lane yaw, bowl
+                        radius/depth) -- what a camera projection must use
       run_meta.json     config snapshot, for reproducibility
 
 sensors.csv is column-identical to synthetic_pothole_dataset.csv on purpose:
@@ -142,8 +150,10 @@ def main() -> int:
         tracker = ph.PotholeTracker(placed, config.LABEL_WINDOW_S)
         # Level B: real geometry on the road. The impulse machinery below is
         # still constructed but never fired -- see the tick loop.
+        tile_manifest: list = []
         if args.level == "B":
-            spawned_tiles = tl.spawn_tiles(world, placed, control=args.control)
+            spawned_tiles = tl.spawn_tiles(world, placed, control=args.control,
+                                           manifest_out=tile_manifest)
             if not spawned_tiles:
                 logger.error("Level B requested but no tiles spawned. Is the PavePotholes "
                              "package imported? Check for static.prop.potholetile_* blueprints.")
@@ -178,7 +188,10 @@ def main() -> int:
             gnss_writer.writerow(["timestamp", "frame", "latitude", "longitude", "altitude"])
 
             index_writer = csv.writer(xf)
-            index_writer.writerow(["frame", "timestamp", "path"])
+            index_writer.writerow([
+                "frame", "timestamp", "path",
+                "cam_x", "cam_y", "cam_z", "cam_pitch", "cam_yaw", "cam_roll",
+            ])
 
             for tick in range(args.ticks):
                 world.tick()
@@ -235,10 +248,14 @@ def main() -> int:
                 for image in rig.drain_images():
                     path = run_dir / "frames" / f"{image.frame:08d}.png"
                     image.save_to_disk(str(path))
+                    cam_tf = image.transform
+                    cam_loc, cam_rot = cam_tf.location, cam_tf.rotation
                     index_writer.writerow([
                         image.frame,
                         f"{image.timestamp - t0:.6f}",
                         f"frames/{path.name}",
+                        f"{cam_loc.x:.6f}", f"{cam_loc.y:.6f}", f"{cam_loc.z:.6f}",
+                        f"{cam_rot.pitch:.6f}", f"{cam_rot.yaw:.6f}", f"{cam_rot.roll:.6f}",
                     ])
                     saved_frames += 1
 
@@ -254,6 +271,12 @@ def main() -> int:
 
         ph.write_ground_truth(run_dir / "ground_truth.json", placed, tracker,
                               args.town, args.seed)
+
+        # The tiles as actually spawned -- real road z and lane yaw, plus the
+        # bowl geometry. ground_truth.json carries the ROUTE potholes (z = 0.0,
+        # radius 0.35 marker), which is not what a projection needs.
+        with (run_dir / "tiles.json").open("w", encoding="utf-8") as f:
+            json.dump({"control_run": args.control, "tiles": tile_manifest}, f, indent=2)
 
         with (run_dir / "run_meta.json").open("w", encoding="utf-8") as f:
             json.dump({
