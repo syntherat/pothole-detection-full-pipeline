@@ -1,15 +1,23 @@
-# 15 — CARLA Simulation Testbed (LEVEL A — P0 COMPLETE 2026-09-06)
-
-> **Status change 2026-09-06.** CARLA 0.9.16 is installed at `D:\dev\pothole` and running. `verify_setup.py` has been executed against it and both P0 values are now filled in (`IMU_GRAVITY_AT_REST = 9.3483`, `WHEEL_POSITION_SCALE = 0.01`). `scenario/export_map.py` has been run against the live simulator and produced a valid 200-segment GeoJSON. **Still unrun:** `drive_and_record.py` — no run has been recorded, so nothing downstream of it is verified.
+# 15 — CARLA Simulation Testbed (LEVEL B — P0–P3 COMPLETE 2026-09-08)
 
 **Scope:** the design for testing the whole PAVE pipeline inside the CARLA simulator — potholes with real
 depth, camera + IMU detection, and the CARLA road network rendered in the map UI.
-**Status:** 🟢 **LEVEL B BUILD PHASE COMPLETE AND VERIFIED (2026-09-08).** CARLA 0.9.16 builds from
-source against a source-built UE 4.26, and **the CarlaUE4 editor opens and renders `Town10HD_Opt`** (4,013
-actors). Engine + Program targets, LibCarla, the CarlaUE4 plugin (752/752 actions) and the PythonAPI wheel
-all built. What remains for Level B is the **content** work (P1: Blender tiles → FBX → `make import`),
-for which Blender is **already installed** (5.2.0 LTS and 4.4.1 on D:). Level A runs. Level C unstarted.
-**Rule 6 applies:** do not describe any of this as working, measured, or validated until it is.
+
+**Status:** 🟢 **Level A runs. Level B is through P3.** Level C unstarted.
+
+| Phase | State |
+|---|---|
+| P0 assumptions | ✅ measured 2026-09-06 — `IMU_GRAVITY_AT_REST = 9.3483`, `WHEEL_POSITION_SCALE = 0.01` (cm), 99/99 props spawn |
+| Level B build | ✅ complete and verified 2026-09-08 — UE 4.26 + Program targets, LibCarla, CarlaUE4 plugin, PythonAPI wheel; the editor opens and renders `Town10HD_Opt` (4,013 actors) |
+| P1 assets | ✅ 2026-09-08 — 4 tiles authored, imported, ray-probed in-engine as **real cavities** (0.110 / 0.070 / 0.040 m, control 0.000). `make package` **not** run |
+| P2 recording | ✅ 2026-09-08 — **7 FSM detections with cavities vs 1 with the flat control**, 0 false positives in both |
+| P3 wire-in | ✅ 2026-09-08 — frames and sensor rows on one timebase (**closes issue #18 on this path**; real-vehicle sync still open); vision scored **0/45** at conf=0.35 |
+| P4–P7 | P6 done 2026-09-06 (map export + CARLA mode). P4, P5, P7 outstanding — **P5 is the critical path** |
+
+**Rule 6 applies:** do not describe any of this as working, measured, or validated until it is. In
+particular, the 7-vs-1 result is a *controlled comparison*, not a recall figure, and there is still no
+end-to-end accuracy number.
+
 **Drafted:** 2026-08-19 · **Published plan:** https://claude.ai/code/artifact/731a81d3-76b7-488a-baf7-d70a620cd5d4
 
 ---
@@ -139,8 +147,6 @@ tested** against a fabricated run directory — no CARLA required, see the chang
 
 Still to do for a working Level A: run P0, tune `IMPULSE_DELTA_V`, record a run, then point the
 orchestrator at it.
-
----
 
 ---
 
@@ -379,163 +385,6 @@ body.
 
 ---
 
-### CARLA source build on this machine — the working recipe (2026-09-07)
-
-`make PythonAPI` succeeds and produces
-`PythonAPI/carla/dist/carla-0.9.16-cp312-cp312-win_amd64.whl` (5.44 MB, containing a 17.67 MB
-`carla/libcarla.cp312-win_amd64.pyd`). Getting there took **eight** distinct fixes. Reproduce with a
-wrapper `.bat` that sets all of the following **before** invoking `make`:
-
-```bat
-set "NoDefaultCurrentDirectoryInExePath="                        rem #1 -- do this FIRST
-call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
-set "UE4_ROOT=D:\dev\UnrealEngine_4.26"
-set "GENERATOR="                                                 rem CARLA default; do NOT force NMake
-set "MAKEFLAGS="
-set "BOOST_BUILD_PATH=<dir containing the user-config.jam below>"
-cd /d D:\dev\carla-source
-make PythonAPI
-```
-
-| # | Symptom | Cause | Fix |
-|---|---|---|---|
-| 1 | `'bootstrap.bat' is not recognized` although the file is present; `'vswhere.exe' is not recognized` from vcvarsall | **`NoDefaultCurrentDirectoryInExePath=1`** is inherited by every spawned shell. It stops cmd resolving executables in the CURRENT DIRECTORY, which CARLA's installers depend on — and it broke vcvarsall's own vswhere lookup | clear the variable. **This is the root cause of several other symptoms** |
-| 2 | UBT/LibCarla ABI mismatch risk | the engine was built with **v143**, not v142 | use `BuildTools\...\vcvarsall.bat x64` with the **default** toolset (14.44) |
-| 3 | `NMAKE : fatal error U1065: invalid option '='` | `make PythonAPI GENERATOR="..."` puts the assignment into `MAKEFLAGS`; **NMAKE reads MAKEFLAGS** | pass GENERATOR as an environment variable; clear `MAKEFLAGS` |
-| 4 | b2 skips every object "for lack of `msvc-setup.nup`" | boost 1.84's `msvc.jam` only auto-detects Community/Professional/Enterprise under `%ProgramFiles(x86)%\...\2022\`. This machine has **BuildTools** | `user-config.jam` naming the compiler and setup script explicitly (below) |
-| 5 | `dtype.cpp(101): error C2039: 'elsize' is not a member of '_PyArray_Descr'` | boost 1.84's **boost.numpy** predates the **NumPy 2** ABI break; numpy 2.5.1 is installed | build boost alone with `PYTHONNOUSERSITE=1` so numpy is invisible and boost_numpy is skipped. CARLA never uses boost_numpy. **Do not set this for the whole build** — setuptools/wheel/pip are also user-site here |
-| 6 | osm2odr: `Generator "NMake Makefiles" does not support platform specification` | `BuildOSM2ODR.bat:108` passes `-A x64` **unconditionally**; only the VS generator accepts it | use CARLA's default `Visual Studio 17 2022` generator |
-| 7 | `LNK1120: 50 unresolved externals`, all `xercesc_3_2` | `NMake Makefiles` is **single-config**, so `cmake --build . --config Release` was ignored and Xerces built **Debug** (`xerces-c_3D.lib`) | same fix as #6 — the VS generator is multi-config and honours `--config Release`, producing `xerces-c_3.lib` |
-| 8 | LibCarla compiles single-threaded | nmake has no parallel build | same fix as #6 — MSBuild parallelises |
-
-**Note how much of this cascades from one wrong turn.** #3, #6, #7 and the serial build were all consequences
-of forcing `GENERATOR="NMake Makefiles"`, which was itself only introduced because #1 made CMake's Visual
-Studio generator unable to find a compiler. Once #1 was fixed the workaround should have been reverted
-immediately; leaving it in cost three failed builds.
-
-`user-config.jam` for #4:
-```
-using msvc : 14.3
-  : "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe"
-  : <setup>"C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Auxiliary/Build/vcvarsall.bat"
-  ;
-```
-
-**Verify by artifact, never by exit code** — see [issue #37](40-known-issues-and-gaps.md).
-
-**Correction to this plan's earlier framing.** The Environment table below and the risk table both assumed the
-Visual Studio question was a *version* problem. At audit time it was worse — there was no C++ toolchain on the
-machine at all. **Both were resolved by the user later the same day**, so the Visual Studio question is now
-closed; see [issue #36](40-known-issues-and-gaps.md) for the measured state and for the `vswhere` caveat.
-
-### Stock props cannot substitute for carved geometry — measured 2026-09-07
-
-**Question:** could a stock `static.prop.*` from the packaged 0.9.16 release give the camera a real
-depression, letting Level B's vision test happen without the source build?
-
-**Answer: no. Not one of the 99 props has a usable cavity.** The source build is unavoidable.
-
-**Method.** Probed the live simulator (Town10HD_Opt) with `world.cast_ray`. Pass 1 spawned all 99
-`static.prop.*` blueprints and recorded bounding boxes. Pass 2 took the 50 pothole-scale ones (footprint
-≥ 0.30 m so a wheel could engage, ≤ 3.0 m so it is a road feature, height 0.15–2.5 m), spawned each on flat
-ground, and cast a 9×9 ray grid down through it, recording the highest hit above ground per cell.
-
-**Result — collision volumes are sealed convex hulls.** Every visually-open container (`bin`, `container`,
-`clothcontainer`, `box01`–`03`, all `plantpot*`, `trashcan04/05`) returned **depth 0.00 at hit-fraction
-1.00**: rays land on one uniform top surface and never enter the opening. `open_interior_cells` was **0 for
-every solid prop**. The nonzero depths are hull artifacts, not cavities — `warningaccident` /
-`warningconstruction` 0.98 m is an A-frame whose rays pass *between the legs* (hit 0.78); `doghouse` 0.28 m
-is a sloping roof; `trashbag` 0.27, `glasscontainer` 0.19, `trashcan01/03` 0.15, `trafficcone02` 0.14,
-`barrel` 0.11 are curvature — a cone tapers, a barrel domes. The only props with interior gaps are
-see-through, not wheel-catching: `shoppingtrolley` (7 % hit), `plasticbag` (1 %), `plastictable` (rays
-between legs).
-
-**Inference, flagged as such:** convex-hull collision is deduced from the ray pattern, not read from the
-assets' collision flags. A 100 % hit rate across the mouth of an open bin admits no other explanation, but
-it was not confirmed at the asset level.
-
-**Also settled — the geometric argument.** Even a prop with a perfect cavity could not make a true pothole:
-the road surface remains, so a prop sits *on* it. The best case is rim-then-cavity — the wheel climbs a lip,
-drops inside, climbs out — which contaminates the signature with an entry bump and still does not look like
-a hole in tarmac to a camera. This is the same lip artifact the Level B risk table already flags for
-Blender tiles, which is why Level C (holes cut into the road mesh) remains the highest-fidelity option.
-
-**P0 item 3 is verified by the same run:** prop spawning at a map spawn point works, **99/99 blueprints
-spawned successfully**, physics disabled, all destroyed cleanly.
-
-### P1 — pothole assets: STARTED 2026-09-08
-
-`carla_sim/assets/` now generates the Level B tiles. Four FBX plus a CARLA manifest, all measured.
-
-| Tile | Bowl depth (measured) | Bowl radius | UCX bodies |
-|---|---|---|---|
-| `PotholeTile_Shallow` | 3.9 cm | 22 cm | 13 |
-| `PotholeTile_Medium` | 6.9 cm | 28 cm | 13 |
-| `PotholeTile_Deep` | 10.9 cm | 34 cm | 13 |
-| `PotholeTile_FlatControl` | 0.0 cm (control) | — | 1 |
-
-All measure **160.0 cm** across, i.e. the FBX scale-100 conversion is correct.
-
-**Files**
-- `carla_sim/assets/generate_pothole_meshes.py` — parametric generator, runs headless in Blender.
-- `carla_sim/assets/verify_pothole_meshes.py` — re-imports each FBX and **measures** it. A clean generator
-  run is not evidence; run this too.
-- `carla_sim/assets/fix_package_paths.py` — repairs the asset paths CARLA writes into
-  `PavePotholes.Package.json`. **Run after every import.**
-- `carla_sim/assets/fbx/` — the four FBX plus `PavePotholes.json` (CARLA `Import.py` props format:
-  `name` / `source` / `tag`, landing at `/Game/PavePotholes/Static/static/<name>`).
-
-**Two decisions that follow directly from measurements in this file**
-
-1. **Collision is authored explicitly as `UCX_` convex bodies — 12 rim wedges plus a floor slab — instead of
-   letting UE hull the mesh.** The 2026-09-07 prop probe established that CARLA props get sealed convex
-   collision: 0 of 99 stock props had a usable cavity, every open-topped container reading as solid. A
-   single hull would turn these tiles into bumps. The verifier checks no collision body encloses the space
-   above the bowl floor.
-2. **A flat control tile exists and should be driven alongside the others.** Because a prop sits ON the road
-   and cannot cut into it, *the deepest hole a tile can present equals its own thickness* — a 10.9 cm
-   pothole necessarily means a 10.9 cm lip to climb first. This is the "tile edge lips" risk in the table
-   below, and it is why Level C is rated higher fidelity. The control has the same footprint and ramp with
-   no bowl, so the lip's own contribution to the IMU signature can be measured and subtracted rather than
-   assumed away.
-
-**Regenerate / re-verify**
-```bash
-BL="D:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
-"$BL" --background --python carla_sim/assets/generate_pothole_meshes.py
-"$BL" --background --python carla_sim/assets/verify_pothole_meshes.py
-```
-
-**Known bias, documented rather than tuned out** (per the risk table): bowl radii are >= 0.10 m because
-CARLA's raycast wheels have zero width and would drop into holes a real tyre bridges. The generator refuses
-to emit a bowl narrower than that.
-
-**Imported into CARLA — 2026-09-08.** Four `.uasset` files under
-`Unreal/CarlaUE4/Content/PavePotholes/Static/static/`, plus
-`Config/PavePotholes.Package.json` registering them as props. Both import commandlets reported
-`0 error(s)`.
-
-**Exactly one `.uasset` per tile** (not one per mesh in the FBX), which is the evidence that UE consumed the
-13 `UCX_` bodies as collision rather than importing them as separate static meshes.
-
-The import route is **not** `make import` — that silently does nothing and returns 0. Use:
-
-```bat
-cd /d D:\dev\carla-source
-python Util\BuildTools\Import.py
-python <repo>\carla_sim\assets\fix_package_paths.py
-```
-
-The fixup is mandatory, not optional: `Import.py` registers each prop at
-`<fbx_basename>.<fbx_basename>`, but an FBX carrying `UCX_` bodies has multiple root nodes and imports as
-`<fbx_basename>_<mesh_name>`, so the registered path points at an asset that does not exist and the prop
-fails to spawn with no error anywhere. Full detail: [issue #40](40-known-issues-and-gaps.md).
-
-**NOT yet verified: that the collision is genuinely concave in-engine.** UE consuming the UCX bodies is
-necessary but not sufficient — nothing has yet confirmed the bowl is empty in the cooked asset. The decisive
-test is the same `world.cast_ray` grid probe that measured all 99 stock props on 2026-09-07, run against a
-spawned tile in a live simulator. Until that passes, **do not describe these tiles as working holes** (Rule 6).
-
 ### P2 — Level B recording harness: DONE and MEASURED 2026-09-08
 
 **The sensor stage fires on fully physics-derived pothole events.** No scripted impulse anywhere: a wheel
@@ -604,12 +453,12 @@ $PY carla_sim/scenario/drive_and_record.py --town "" --level B --control --potho
 | Phase | Work | Effort |
 |---|---|---|
 | **P0** | Verify assumptions — see below. **Do not skip.** | ½ day |
-| **P1** | Pothole assets (Level B only): Blender tiles → FBX → `make import` → `make package` | **STARTED 2026-09-08** — 4 FBX generated and measured; import pending. See the P1 section above |
+| **P1** | Pothole assets (Level B only): Blender tiles → FBX → `make import` → `make package` | **DONE 2026-09-08** except `make package` — 4 FBX generated, imported, and verified in-engine as real cavities by ray probe. See the P1 section above |
 | **P2** | Recording harness — new `carla_sim/` subsystem | **DONE 2026-09-08.** Level B recording works; 7 detections with cavities vs 1 with the flat control. See the P2 section above |
-| **P3** | Wire in: `integration/carla_frame_provider.py` + a `dataset_path` param on `orchestrator.run()` | 1 day |
+| **P3** | Wire in: `integration/carla_frame_provider.py` + a `dataset_path` param on `orchestrator.run()` | **DONE 2026-09-08.** Provider written and wired; the vision stage ran on 45 real-pothole frames and confirmed **0/45** — the domain gap is measured. See `04-current-state.md` |
 | **P4** | Recalibrate FSM thresholds; retrain the RandomForest on CARLA data | 1–2 days |
 | **P5** | Close the vision domain gap — auto-labelled fine-tuning | 2–4 days |
-| **P6** | Export the CARLA road network to the map UI | 2–3 days |
+| **P6** | Export the CARLA road network to the map UI | **DONE 2026-09-06.** `scenario/export_map.py` + CARLA mode in `app.js`; Town03 503 segments, Town10HD_Opt 200. See [`13-map-ui.md`](13-map-ui.md) |
 | **P7** | Live streaming mode (optional) | 2–3 days |
 
 ### Proposed layout

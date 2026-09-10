@@ -233,10 +233,15 @@ history. Re-running the adapter is idempotent — it seeds from what is already 
 
 ---
 
-## CARLA testbed (Level A)
+## CARLA testbed
 
-Scaffold only — **never executed.** See [`15-carla-testbed-plan.md`](15-carla-testbed-plan.md) and
-`carla_sim/README.md`.
+**Level A and Level B both run** (P0–P3 complete, 2026-09-08). See
+[`15-carla-testbed-plan.md`](15-carla-testbed-plan.md) and `carla_sim/README.md`.
+
+⚠ **Two simulators, not interchangeable.** Level A works on the stock 0.9.16 package at `D:\dev\pothole`.
+**Level B needs the source build** at `D:\dev\carla-source` — the stock package has no `potholetile_*`
+blueprints, and pointing a Level B run at it fails *after* loading the map, so it reads as a scenario bug
+rather than a wrong-simulator bug.
 
 Needs a running CARLA simulator plus the client library:
 ```bash

@@ -41,6 +41,91 @@ Rules for entries:
 
 ---
 
+## 2026-09-10 — Context-hygiene pass: duplicate block removed, six stale passages corrected
+**Author:** Claude Opus 5 (Claude Code)
+**Scope:** context only. **No code, no configuration, no data, no measurements changed.**
+
+**What changed**
+- **`15-carla-testbed-plan.md` — removed a 157-line duplicated block.** Three sections ("the working
+  recipe", "Stock props cannot substitute", "P1 — pothole assets") each appeared **twice**. The first
+  and second copies of the first two were byte-identical; the two copies of P1 were **not**, and that
+  is why this mattered: the surviving copy ended with the in-engine ray-probe table proving the bowls
+  are real cavities, while the duplicate ended with *"NOT yet verified: that the collision is genuinely
+  concave in-engine."* One file asserted and denied the same fact 150 lines apart. The stale copy was
+  deleted; the verified one kept. Also removed a doubled `---` at the Level A/Level B seam.
+- **`15-carla-testbed-plan.md` — header and phase table rewritten.** The status block still said
+  *"Still unrun: `drive_and_record.py` — no run has been recorded"* and *"What remains for Level B is
+  the content work (P1)"*. Both are two days out of date. Replaced with a phase-state table. In the
+  phase plan, P1 `import pending` → done and verified, P3 → done, P6 → done 2026-09-06.
+- **`01-project-overview.md`** — the maturity table said *"Two-stage detection is active."* Corrected
+  per issue #30. The frame↔sensor row now distinguishes the mocked default path from the real CARLA one.
+- **`30-setup-and-run.md`** — the CARLA section said *"Scaffold only — never executed."* Replaced with
+  the current state plus the stock-vs-source simulator warning, which is a documented time sink.
+- **`02-repository-map.md`** — `docs/` was described as gitignored *"like `context/`"*. `context/` has
+  not been gitignored since `d7ad253` / `47d88cc`.
+- **`14-integration-layer.md`** — a stray `er` sat where a section heading should be, leaving the final
+  table unheaded. Restored as "Where to change what", matching `10-physics-sensor-pipeline.md`.
+- **`40-known-issues-and-gaps.md`** — the "Suggested priority" table had lost all but one row. Rebuilt
+  to seven, mirroring `04-current-state.md`.
+- **`04-current-state.md`** — priority table aligned with the above; header dated.
+
+**Why**
+Read the whole knowledge base in one pass at the user's request and found these while reading. Rule 1:
+where a context file and reality disagree about behaviour, reality wins and the file gets fixed.
+
+**The one substantive judgement — issue #18**
+The changelog and the issue register **contradicted each other**. The 2026-09-08 P3 entry says
+*"issue #18 is closed"*; `40-known-issues-and-gaps.md` and `04-current-state.md` both still listed it
+open and still gave it as the reason no accuracy figure can exist.
+
+Both are half right, so **#18 was left open with an explicit partial-closure note** rather than being
+resolved or left as it was. Closed on the CARLA path — `levelB_vision` reproduces `levelB_bowls`'
+sensor detections to within 5 ms, so one recording describes one set of real holes through both
+modalities, which is exactly what #18 asked for and is what made the 0/45 vision score possible. Open
+for real-vehicle data, because a CARLA number validates the pipeline and not real-world performance
+(Rule 6, and the plan's own risk table).
+
+**Practical consequence, and the reason this was worth doing:** #18 has been cited repeatedly as
+"therefore no accuracy figure is meaningful". That is now too broad. Cite it for real-world claims;
+cite the measured CARLA numbers for simulated ones.
+
+**Contracts affected**
+None.
+
+**Context files updated**
+`01-project-overview.md`, `02-repository-map.md`, `04-current-state.md`, `14-integration-layer.md`,
+`15-carla-testbed-plan.md`, `30-setup-and-run.md`, `40-known-issues-and-gaps.md`, this file.
+
+**Verified**
+- The duplication was confirmed by `diff`-ing the two copies of each section before deleting anything,
+  not by eye. Two pairs identical; the P1 pair differed by exactly the 29 lines carrying the in-engine
+  verification. After the edit each heading occurs **once** (`grep -c`) and the stale
+  *"NOT yet verified... concave in-engine"* paragraph occurs **zero** times.
+- Spot-checked against source rather than trusted from the docs: `integration/fusion.py` still reads
+  `SENSOR_THRESHOLD 0.5`, `VISION_THRESHOLD 0.35`, `SENSOR_WEIGHT 0.4`, `VISION_WEIGHT 0.6`,
+  `FUSION_THRESHOLD 0.5` — so the patent's necessity invariant (`SENSOR_WEIGHT < FUSION_THRESHOLD`)
+  still holds; `scripts/validate_road_seg.py` exists (14,851 B); both checkpoints present at the
+  documented sizes; `git status` was clean before this pass.
+- **Nothing was executed.** No tests, no orchestrator run, no model load. This session ran on the
+  **MacBook** — Python 3.9.6, no torch, no ultralytics, no `carla_sim/out/`, `sample_images/` holding
+  only its README — so every number quoted here was read from the repo's own records, not re-measured.
+
+**Notes for the next agent**
+- **The duplication is worth understanding, not just fixing.** Both copies were appended by separate
+  sessions writing "the working recipe" and "P1" sections independently, and the older one sank below
+  the newer one instead of replacing it. A file that grows by appending sections with the same heading
+  will do this again. When adding to `15-*.md`, `grep` for your heading first.
+- `04-current-state.md` and `40-known-issues-and-gaps.md` now carry the **same** priority ordering.
+  They drifted apart before; keep them in step or drop one of them.
+- Two things noticed and deliberately **not** changed, because they are the user's call, not a hygiene
+  fix: (1) `pothole_detection_app/README.md` still carries the model-performance table that presents
+  upstream YOLO architecture ranges as measurements of `best.pt` (issue #15, Rule 6) — it has been
+  flagged as stale since 2026-08-19 and is the last place in the repo that misstates accuracy;
+  (2) `15-carla-testbed-plan.md` "Known risks" still lists the source build at "High likelihood" with a
+  v142 mitigation, which was superseded by the v143 correction and by the build succeeding.
+
+---
+
 ## 2026-09-09 — `road_seg.pt` interrogated from its own checkpoint; issue #30 diagnostic staged
 **Author:** Claude Opus 5 (Claude Code)
 **Scope:** `pothole_detection_app/scripts/`, context. **No existing code changed.**

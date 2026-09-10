@@ -531,7 +531,23 @@ quarter-car parameters so cross-vehicle sensor evidence becomes commensurable �
 occupied direction, and leans on this project's strongest asset. It must be built before it can be
 claimed (Rule 6).
 
-### 18. No frame↔sensor synchronisation — **[GAP]** ⭐ the big one
+### 18. No frame↔sensor synchronisation — **[GAP]** ⭐ · **PARTIALLY CLOSED 2026-09-08**
+
+> **Status correction, added during the 2026-09-10 context pass.** This entry and the changelog
+> disagreed with each other and the disagreement mattered, because #18 is the most-cited issue in the
+> repo. The 2026-09-08 P3 entry states plainly: *"frames and sensor rows describe the same holes —
+> issue #18 is closed."* That is true **on the CARLA path** and is backed by measurement — the
+> `levelB_vision` run reproduces the `levelB_bowls` sensor detections to within 5 ms, so one recording
+> describes one set of real holes through both modalities. The vision stage was then scored against it
+> (0/45 at conf=0.35), which was impossible before.
+>
+> **What remains open is the original scope: real-vehicle synced data.** A CARLA number validates the
+> *pipeline*, not real-world detector performance — the plan's own risk table says so, and Rule 6
+> applies. So the issue is left open rather than moved to Resolved, with this qualification. **Do not
+> cite #18 as a blanket "no accuracy figure is possible" any more**; cite it for real-world claims, and
+> cite the measured CARLA numbers for simulated ones.
+
+The original text follows.
 The pipeline's foundational assumption — that a camera frame can be matched to a sensor row by time — has no implementation. `frame_provider.get_mock_frame()` picks an arbitrary stand-in image.
 
 **Everything downstream is unvalidated because of this.** `vision_score`, `final_confidence`, and every fusion weight are measured against images that have no relationship to the sensor event. Until real time-synchronised vehicle data exists, **no vision-stage or fusion accuracy claim is meaningful** (Rule 6).
@@ -577,9 +593,17 @@ Per Rule 6:
 
 ## Suggested priority
 
+Mirrors the priority table in [`04-current-state.md`](04-current-state.md); keep the two in step.
+
 | Order | Item | Why |
 |---|---|---|
-| 1 | #18 frame↔sensor sync | Highest value overall, largest effort — needs real vehicle data |
+| 1 | **#18** frame↔sensor sync | ⚠ **Partially closed — see the entry above.** Closed on the CARLA path 2026-09-08; still open for real-vehicle data, which is what any real-world accuracy claim needs |
+| 2 | **#30** stage 1 is inert | `road_seg.pt` never fires `visible_road`; the cascade is single-stage plus a fixed crop. Also the one engineering item left on the patent filing |
+| 3 | **#33** the AI filter rejects nothing | Confirmed 154/154 physics candidates. Improving the classifier 80 %→96 % recall moved end-to-end recall by **zero** — the FSM is the sole bottleneck |
+| 4 | **#42** per-row `predict_proba` | `sensor_adapter.py` is ~3 orders of magnitude slower than it needs to be. Batch it **before** running the cascade over any CARLA-length recording |
+| 5 | **#34** committed dataset mislabels 4.2 % of positives | Fixed in the generator; the committed CSV still carries it, and every figure measured against that CSV inherits it |
+| 6 | **#7** `test_detection.py` aborts pytest | A bare `pytest` from the repo root collects **zero** tests, including the healthy `integration/` suite |
+| 7 | **#23** two GUIs, diverging | Nobody has chosen which is the product. Blocks the outstanding GUI smoke tests |
 
 ---
 

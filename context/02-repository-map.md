@@ -27,8 +27,9 @@ pothole-detection-full-pipeline/
 
 ### `docs/` — patent disclosure working files  **[G]**
 
-Added 2026-09-09. **Gitignored** (`.gitignore:34`), like `context/` — these are confidential filing
-materials and local to the working machine. Not part of the running system; no code reads them.
+Added 2026-09-09. **Gitignored** (`.gitignore:34`) — these are confidential filing materials, local to the
+working machine. Not part of the running system; no code reads them. **Note `context/` is *not* gitignored**
+and has not been since commits `d7ad253` / `47d88cc`; `docs/` is the folder that is.
 
 | File | What it is |
 |---|---|

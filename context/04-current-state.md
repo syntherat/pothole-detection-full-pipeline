@@ -3,7 +3,12 @@
 **Scope:** where the project actually stands, what was done most recently, and what to do next.
 **This file is mutable** — unlike [`50-changelog.md`](50-changelog.md), which is append-only history,
 this one gets rewritten to reflect the present. Update it when the situation changes.
-**Last updated:** 2026-09-09 (second session) — the issue #30 diagnostic was **half-answered from the
+**Last updated:** 2026-09-10 — context-hygiene pass only, **no code and no measurements changed**. Six
+stale or self-contradicting passages across the knowledge base were corrected, and issue #18's status was
+reconciled with the changelog (partially closed — CARLA path only). Detail in
+[`50-changelog.md`](50-changelog.md).
+
+**Previous:** 2026-09-09 (second session) — the issue #30 diagnostic was **half-answered from the
 checkpoint itself** and the other half is staged but unrunnable here; see "Item 3" below. Earlier that day:
 patent disclosure prepared; prior-art search found that the vision architecture is anticipated (Xing & Yang, Feb 2026) and that two VIT applications cover adjacent ground. See the patent section below. No code changed. Level B P3 remains the technical state: `best.pt` confirms **0/45** on real pothole frames (peak 0.302 vs a 0.35 gate), and fine-tuning is still the critical path.
 
@@ -310,11 +315,13 @@ was not searched.
 
 | | Issue | Note |
 |---|---|---|
-| 1 | **#18** frame↔sensor sync | Still the reason no accuracy figure exists. Level B is the path |
-| 2 | **#30** stage 1 is inert | `road_seg.pt` never fires; the cascade is single-stage plus a crop |
+| 1 | **#18** frame↔sensor sync | ⚠ **Partially closed 2026-09-08** — done on the CARLA path, still open for real-vehicle data. It is no longer the reason no *simulated* figure exists |
+| 2 | **#30** stage 1 is inert | `road_seg.pt` never fires; the cascade is single-stage plus a crop. Also the last engineering item on the patent filing |
 | 3 | **#33** the AI filter rejects nothing | It confirmed 154/154 physics candidates. Improving the classifier from 80 %→96 % recall moved end-to-end recall by **zero** |
-| 4 | **#34** committed dataset mislabels 4.2 % of positives | Fixed in the generator; the committed CSV still has it |
-| 5 | **#7** `test_detection.py` aborts pytest | Blocks the whole suite from collecting |
+| 4 | **#42** per-row `predict_proba` | `sensor_adapter.py` is ~1000× slower than needed. Batch it **before** any CARLA-length cascade run |
+| 5 | **#34** committed dataset mislabels 4.2 % of positives | Fixed in the generator; the committed CSV still has it |
+| 6 | **#7** `test_detection.py` aborts pytest | Blocks the whole suite from collecting |
+| 7 | **#23** two GUIs, diverging | Undecided; blocks the outstanding GUI smoke tests |
 
 Resolved 2026-09-06: **#27** (joblib/numpy — no pin needed), **#28** (vehicle feed), **#31** (orchestrator
 could not start), **#35** (detector did not transfer). Environment gotcha: **#32** (`-quality-level=Low`

@@ -335,8 +335,13 @@ as not a quality signal, so older baselines remain comparable.
 asserts that the analysed slice actually contains events — otherwise it would pass vacuously.
 
 This remains the only accuracy measurement in the repo, it is still synthetic, and it still covers Stage 1
-only. The vision half cannot be measured honestly until the mock frames are replaced with real synced ones.
-er
+only. The vision half cannot be measured honestly on **this** path — the mock frames have no relationship to
+the sensor rows. It has since been measured on the CARLA path instead, where frames and rows share a
+timebase: **0/45 confirmed** at conf=0.35 (see [`15-carla-testbed-plan.md`](15-carla-testbed-plan.md) P3).
+
+---
+
+## Where to change what
 
 | Goal | Where |
 |---|---|
