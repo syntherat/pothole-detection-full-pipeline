@@ -122,6 +122,11 @@ strictly fewer potholes than the raw model does on the same images.
 **This is not a defect in the cascade.** It is a domain mismatch between `road_seg.pt` and the stand-in
 images that were chosen. Both stages behave as designed. The lesson is about the mock, not the model.
 
+> **Scope widened 2026-10-07.** The same lower-60 % crop is now also what `TwoStageDetector` returns when
+> **no** segmentation model is loaded, or when segmentation raises (previously an all-255 "everything is
+> road" mask). So this crop-away effect on close-up photos now applies on those paths too. Deliberate: it
+> aligns the code with patent disclosure §6B.4. See the 2026-10-07 changelog entry.
+
 Also checked and **ruled out**: `vision_adapter.VisionSession.confirm()` scores a frame with
 `mean(confidences)` rather than `max`, which in principle penalises a frame containing several weak
 detections alongside a strong one. Across these 17 images it changes the outcome on exactly one image at

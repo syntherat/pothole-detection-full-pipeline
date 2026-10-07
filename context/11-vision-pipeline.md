@@ -90,7 +90,7 @@ create_two_stage_detector(pothole_model_path="model/best.pt",
 - Loads the road model only if the path is truthy **and** exists; on any load exception it logs a warning and continues.
 - `self.use_road_seg` is the single flag that everything else branches on.
 
-`model/road_seg.pt` **is present**, so `use_road_seg` is `True` and the segmentation branch runs. If you ever see `Road segmentation model not found` in the logs, the file has gone missing and detection has silently dropped to unfiltered single-stage — historically the most common source of "why are there so many false positives".
+`model/road_seg.pt` **is present**, so `use_road_seg` is `True` and the segmentation branch runs. If you ever see `Road segmentation model not found` in the logs, the file has gone missing. **Since 2026-10-07** detection then uses the lower-60 % geometric prior instead of dropping to unfiltered single-stage (see step 1 below); before that date a missing file meant no filtering at all — historically the most common source of "why are there so many false positives".
 
 > ⚠️ **CORRECTED 2026-09-09 — the segmentation half is NOT effective.** This section previously said it
 > was "live". The branch executes, but the checkpoint predicts `visible_road` on **0/16** dash-camera
@@ -108,7 +108,7 @@ create_two_stage_detector(pothole_model_path="model/best.pt",
 
 ### `get_road_mask(frame, lowres_width=None)`
 
-1. If `use_road_seg` is False → return an all-255 mask (everything is road; no filtering).
+1. If `use_road_seg` is False → return the **geometric prior**: lower 60 % of the frame = 255 (`_geometric_road_prior()`). *Changed 2026-10-07; was an all-255 mask (no filtering). Aligns the code with patent disclosure §6B.4.*
 2. Optionally downscale to `lowres_width` (**800 px** in both GUI and video callers) for speed; the mask is upscaled back at the end with `INTER_NEAREST`.
 3. Run the segmentation model.
 4. **Include pass:** if any include-class ids resolved, OR together the masks of boxes with those class ids.
@@ -116,7 +116,7 @@ create_two_stage_detector(pothole_model_path="model/best.pt",
 5. **Exclude pass:** OR together occluder masks and `AND NOT` them out of the road mask.
 6. Morphological `CLOSE` then `OPEN` with a 5×5 kernel to fill holes and drop speckle.
 7. **Empty-mask fallback:** if nothing survived, set the lower 60 % of the frame to road and log a warning.
-8. On any exception: log and return an all-255 mask (fail open — never lose detections to a segmentation crash).
+8. On any exception: log and return the same geometric prior as step 1. *Changed 2026-10-07; was an all-255 mask (fail open). A crash now still constrains detections to the lower 60 % rather than disabling the filter.*
 
 Masks are binarised at `> 0.5` then scaled to 0/255. Downstream tests use `> 127`.
 

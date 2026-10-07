@@ -180,6 +180,8 @@ The CLI counterpart to the GUIs' video mode. Imports `create_two_stage_detector`
 
 Same performance strategy as the enhanced GUI: `ROAD_MASK_STRIDE = 10`, `ROAD_MASK_WIDTH = 800`. Writes annotated videos plus a CSV summary.
 
+**Changed 2026-10-07:** if `road_seg.pt` is missing, the script no longer drops to raw single-stage. It stays on the `detect_potholes()` path and receives the detector's lower-60 % geometric-prior mask. Only `--no-use-road-seg` bypasses road filtering.
+
 ### `predict_script.py`
 Sixteen lines. `python scripts/predict_script.py <image_path>`, uses the relative path `model/best.pt` so it **must be run from `pothole_detection_app/`**. Ultralytics chooses the save directory.
 

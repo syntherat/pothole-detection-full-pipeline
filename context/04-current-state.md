@@ -3,7 +3,13 @@
 **Scope:** where the project actually stands, what was done most recently, and what to do next.
 **This file is mutable** — unlike [`50-changelog.md`](50-changelog.md), which is append-only history,
 this one gets rewritten to reflect the present. Update it when the situation changes.
-**Last updated:** 2026-09-10 — context-hygiene pass only, **no code and no measurements changed**. Six
+**Last updated:** 2026-10-07 — **code changed**: `TwoStageDetector.get_road_mask()` now returns the
+lower-60 % geometric prior (not an all-road mask) when no segmentation model is loaded or segmentation
+raises, the centroid filter no longer requires `use_road_seg`, and `predict_videos.py` keeps the filtered
+path without `road_seg.pt`. Done so code, patent §6B.4 and patent Fig. 3 agree. Not run end-to-end on this
+Mac (no torch). Detail in [`50-changelog.md`](50-changelog.md).
+
+**Previous:** 2026-09-10 — context-hygiene pass only, **no code and no measurements changed**. Six
 stale or self-contradicting passages across the knowledge base were corrected, and issue #18's status was
 reconciled with the changelog (partially closed — CARLA path only). Detail in
 [`50-changelog.md`](50-changelog.md).

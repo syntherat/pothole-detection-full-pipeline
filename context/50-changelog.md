@@ -41,6 +41,53 @@ Rules for entries:
 
 ---
 
+## 2026-10-07 — No-model / error road mask changed from "all road" to the lower-60 % geometric prior
+**Author:** Claude Opus 5.5 (Claude Code)
+**Scope:** vision (`pothole_detection_app/app/two_stage_detection.py`, `pothole_detection_app/scripts/predict_videos.py`)
+
+**What changed**
+- `get_road_mask()`: when `use_road_seg` is False, and in the `except` path, it now returns
+  `_geometric_road_prior(frame)` (new static helper: lower 60 % of the frame = 255) instead of
+  `np.ones(...) * 255`.
+- `detect_potholes()` centroid filter and the per-box guard in `visualize()` no longer require
+  `self.use_road_seg`; they run whenever a `road_mask` exists. Without this, the new mask would be computed
+  and then ignored.
+- `predict_videos.py`: `use_road_seg = args.use_road_seg` (was `args.use_road_seg and detector.use_road_seg`),
+  so a missing `road_seg.pt` keeps the filtered `detect_potholes()` path. Startup message updated. Only
+  `--no-use-road-seg` now bypasses filtering.
+
+**Why**
+- User request. The patent disclosure (§6B.4, Fig. 3, claim c.3) says the mask falls back to the camera-geometry
+  prior "when no segmentation model is available"; the code returned an all-road mask, which disables the road
+  constraint entirely. The user chose to change the code so code, patent text and figures agree.
+- Also makes the batch video processor honour §6B.1 ("every consumer gets identical filtering").
+
+**Contracts affected**
+- The `get_road_mask()` return value on the no-model / error paths (`20-data-contracts.md` comment updated).
+  Shape and dtype unchanged. No caller compares against an all-255 mask; `vision_adapter.py` and the GUIs
+  consume it through `detect_potholes()`.
+
+**Context files updated**
+- `11-vision-pipeline.md` (steps 1 and 8, missing-model note), `12-vision-training-scripts.md` (predict_videos),
+  `20-data-contracts.md`, `21-configuration-and-tuning.md` (`use_road_seg=False` row), `30-setup-and-run.md`
+  (troubleshooting row), `40-known-issues-and-gaps.md` (#29 scope note), `04-current-state.md`.
+
+**Verified**
+- Both files pass `py_compile`. `_geometric_road_prior` extracted and run on a 100x50 frame: top 40 rows all 0,
+  bottom 60 all 255, 60 % road. That is all.
+- **Not run:** the detector, the GUIs, `predict_videos.py`, or `integration/test_integration.py` — this Mac has
+  no torch/ultralytics. Run `python -m pytest integration/test_integration.py -q` on the Windows box.
+
+**Notes for the next agent**
+- With `road_seg.pt` present (the normal case) behaviour is unchanged: issue #30 means it already reached the
+  lower-60 % fallback every time.
+- Visible change only when `road_seg.pt` is missing or segmentation throws: detections in the top 40 % of the
+  frame are now dropped. Issue #29's crop-away effect on close-up photos applies on those paths too.
+- `pothole_app_filtered.py` has its own `get_road_mask()` and was **not** touched (patent §6B.7 describes it
+  separately).
+
+---
+
 ## 2026-09-10 — Context-hygiene pass: duplicate block removed, six stale passages corrected
 **Author:** Claude Opus 5 (Claude Code)
 **Scope:** context only. **No code, no configuration, no data, no measurements changed.**

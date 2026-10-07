@@ -331,7 +331,7 @@ If you have no sample images and just want to see the UI work, click **+ Simulat
 | `No stand-in images found. Searched: ...` (warning, not a crash) | Add photos to `data/sample_images/` — see the README there. The run continues and reports how many events it skipped |
 | `ModuleNotFoundError: pothole_detection` | Fixed 2026-08-19 — the script inserts `detector_py/` on `sys.path` itself. If it recurs, that insert has been removed |
 | `ModuleNotFoundError: schema` | Running an `integration/` module without its directory on `sys.path`. Invoke `orchestrator.py` as a script, or insert the path |
-| `Road segmentation model not found` in logs | **No longer expected** — `road_seg.pt` ships with the repo. If you see this, the file is missing or corrupt and detection has dropped to unfiltered single-stage |
+| `Road segmentation model not found` in logs | **No longer expected** — `road_seg.pt` ships with the repo. If you see this, the file is missing or corrupt and detection uses the lower-60 % geometric prior (since 2026-10-07; previously unfiltered single-stage) |
 | Confidence slider does nothing (enhanced GUI) | The `_conf` import trap — see [`40-known-issues-and-gaps.md`](40-known-issues-and-gaps.md) |
 | Map shows "GOOGLE_API_KEY missing" | `config.js` not created |
 | `Could not poll pave_events.json` every 3 s | Opened via `file://`, or not served from the repo root |

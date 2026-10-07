@@ -343,7 +343,8 @@ create_two_stage_detector(pothole_model_path, road_model_path=None) -> TwoStageD
 detector.use_road_seg  # bool — False when no road model loaded
 
 detector.get_road_mask(frame, lowres_width=None) -> np.uint8 mask
-    # 255 = road, 0 = not road; all-255 when use_road_seg is False
+    # 255 = road, 0 = not road; lower 60 % = 255 (geometric prior) when
+    # use_road_seg is False or segmentation raises — was all-255 before 2026-10-07
 
 detector.detect_potholes(frame, conf=0.35, return_mask=False,
                          road_mask=None, lowres_width=None)

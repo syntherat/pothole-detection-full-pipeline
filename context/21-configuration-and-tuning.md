@@ -181,7 +181,7 @@ Set via the filtered GUI slider, the enhanced GUI slider (fixed 2026-08-19 — i
 | Raise stride to 20–30 | Roughly halves segmentation cost; the mask lags reality, bad for fast turns |
 | Lower stride to 1 | Per-frame accuracy, several times slower |
 | Lower width to 480 | Faster segmentation, coarser mask edges |
-| Set `use_road_seg=False` | Fastest; **no false-positive filtering at all** |
+| Set `use_road_seg=False` | Fastest. In `TwoStageDetector` (since 2026-10-07) detections are still constrained to the **lower 60 %** geometric prior; only `predict_videos.py --no-use-road-seg` bypasses the mask entirely, giving **no filtering at all** |
 
 Note the filtered GUI does **not** downscale or stride — it segments every frame at full resolution. That is why it is slower and why its masks are cleaner.
 

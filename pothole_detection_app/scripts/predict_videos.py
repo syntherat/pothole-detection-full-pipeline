@@ -73,7 +73,9 @@ def _process_video_two_stage(detector, vid: Path, out_dir: Path, args) -> tuple[
 
     frame_idx = 0
     total_potholes = 0
-    use_road_seg = args.use_road_seg and detector.use_road_seg
+    # Without road_seg.pt the detector still supplies a geometric-prior mask, so keep the
+    # road-constrained path; only an explicit --no-use-road-seg bypasses filtering.
+    use_road_seg = args.use_road_seg
     last_road_mask = None
     
     while True:
@@ -141,7 +143,7 @@ def main() -> int:
     if detector.use_road_seg:
         print("✓ Road segmentation enabled")
     else:
-        print("⚠ Road segmentation model not found, using single-stage detection")
+        print("⚠ Road segmentation model not found, using lower-60% geometric road prior")
     
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = args.output_dir / "_summary.csv"

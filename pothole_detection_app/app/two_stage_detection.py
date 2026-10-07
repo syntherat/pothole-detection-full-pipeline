@@ -94,9 +94,10 @@ class TwoStageDetector:
             Binary mask (uint8) where 255=road, 0=non-road
         """
         if not self.use_road_seg:
-            # Return full frame mask if no segmentation
-            return np.ones(frame.shape[:2], dtype=np.uint8) * 255
-        
+            # No segmentation model: fall back to the geometric prior rather than an all-road
+            # mask, so detections are still road-constrained (patent disclosure §6B.4).
+            return self._geometric_road_prior(frame)
+
         try:
             h, w = frame.shape[:2]
             seg_frame = frame
@@ -162,8 +163,16 @@ class TwoStageDetector:
             
         except Exception as e:
             logger.error(f"Error in road segmentation: {e}")
-            # Fallback: return full frame
-            return np.ones(frame.shape[:2], dtype=np.uint8) * 255
+            # Same geometric prior as the no-model path; an all-road mask would disable filtering.
+            return self._geometric_road_prior(frame)
+
+    @staticmethod
+    def _geometric_road_prior(frame) -> np.ndarray:
+        """Binary mask with the lower 60% of the frame marked as road (255)."""
+        h = frame.shape[0]
+        mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+        mask[int(h * 0.4):, :] = 255
+        return mask
     
     def detect_potholes(self, frame, conf=0.35, return_mask=False, road_mask=None, lowres_width: int | None = None):
         """
@@ -189,7 +198,7 @@ class TwoStageDetector:
         results = self.pothole_model(frame, conf=conf, verbose=False)[0]
 
         # Hard-filter detections to visible road pixels, not just visualization.
-        if self.use_road_seg and road_mask is not None and results.boxes is not None and len(results.boxes) > 0:
+        if road_mask is not None and results.boxes is not None and len(results.boxes) > 0:
             keep_indices = []
             h, w = road_mask.shape[:2]
 
@@ -235,7 +244,7 @@ class TwoStageDetector:
                 conf = float(conf_val)
                 
                 # Extra guard: keep display aligned with road-filtered detections.
-                if self.use_road_seg and road_mask is not None:
+                if road_mask is not None:
                     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
                     if not (0 <= cy < road_mask.shape[0] and 0 <= cx < road_mask.shape[1] and road_mask[cy, cx] > 127):
                         continue  # Skip this box if not in road area
