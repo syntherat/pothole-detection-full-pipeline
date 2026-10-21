@@ -27,6 +27,7 @@ This directory is the project's **machine-readable knowledge base**. It exists s
 | 13 | [`13-map-ui.md`](13-map-ui.md) | `pothole_map_ui/` — Google Maps dashboard, GPS tracking, proximity alerts, event polling. |
 | 14 | [`14-integration-layer.md`](14-integration-layer.md) | `integration/` — the cascade orchestrator, adapters, fusion, PAVE connector, tests. |
 | 15 | [`15-carla-testbed-plan.md`](15-carla-testbed-plan.md) | **LEVEL A SCAFFOLD, NEVER RUN.** `carla_sim/` — CARLA testbed: potholes with real depth, synced camera + IMU, CARLA road network in the map UI. |
+| 16 | [`16-field-rig.md`](16-field-rig.md) | `field_rig/` — real-drive validation: phone-vs-Pi decision, Sensor Logger, bill of materials, soldering, sync and ground-truth plan. Recorder tested on fake hardware only. |
 
 ### Cross-cutting reference
 | # | File | Covers |
@@ -53,6 +54,7 @@ This directory is the project's **machine-readable knowledge base**. It exists s
 | Add a new detection stage | `03`, `14`, `20`, and **Rule 3** |
 | Understand accuracy claims | `40` (§ Accuracy claims), `10`, and **Rule 6** |
 | Resume after a break / start a fresh session | `04` first — it names the next step and the open decisions |
+| Real-car testing, the phone / Raspberry Pi rig, what hardware to buy | `16` first, then `20` (§1 field-rig CSV), `10`, and **Rule 6** |
 | Work on the CARLA simulation testbed | `15` first, then `14`, `20`, and **Rule 6** — the Level A scaffold exists but has never been executed |
 
 ---

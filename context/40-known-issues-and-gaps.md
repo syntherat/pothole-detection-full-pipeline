@@ -563,8 +563,13 @@ shared timebase, and `integration/carla_frame_provider.py` looks frames up by ti
 `event_id`. The lookup logic is tested; **nothing has been recorded yet**, so the gap is not closed in
 practice until a real run exists.
 
-### 20. No real sensor data — **[GAP]**
-Everything is synthetic: 400 Hz, `speed` resampled per row as white noise rather than a speed profile, injected events placed with **no collision check** (so they can overlap and corrupt each other's signatures), and a generated drop range `U(4,7)` that straddles the FSM's `6.81` threshold. See the interaction note in [`10-physics-sensor-pipeline.md`](10-physics-sensor-pipeline.md).
+### 20. No real sensor data — **[GAP]** · recorder written 2026-10-07, no data yet
+`field_rig/pi_recorder.py` (Raspberry Pi + MPU-6050 + USB GPS) now exists to collect real drives; it has
+only been exercised against simulated hardware, and **no real recording exists**. Still missing: the step
+that aligns a field run with the phone's video (Sensor Logger) and feeds both to the cascade, and any ground
+truth beyond a passenger calling potholes out on the video's audio.
+
+Before that: everything is synthetic: 400 Hz, `speed` resampled per row as white noise rather than a speed profile, injected events placed with **no collision check** (so they can overlap and corrupt each other's signatures), and a generated drop range `U(4,7)` that straddles the FSM's `6.81` threshold. See the interaction note in [`10-physics-sensor-pipeline.md`](10-physics-sensor-pipeline.md).
 
 ### 21. No live camera or live sensor input — **[GAP]**
 Everything is file-based: a CSV, image files, video files. There is no streaming path, no device capture, no real-time loop.

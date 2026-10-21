@@ -3,7 +3,12 @@
 **Scope:** where the project actually stands, what was done most recently, and what to do next.
 **This file is mutable** — unlike [`50-changelog.md`](50-changelog.md), which is append-only history,
 this one gets rewritten to reflect the present. Update it when the situation changes.
-**Last updated:** 2026-10-07 — **code changed**: `TwoStageDetector.get_road_mask()` now returns the
+**Last updated:** 2026-10-07 (second session) — **new folder `field_rig/`**: a Raspberry Pi recorder
+(MPU-6050 + USB GPS) for real drives, with a phone (Sensor Logger) recording video separately. Chosen
+because the CARLA validation could not be completed on the Windows machine. Tested against simulated
+hardware only; the parts are not bought yet. See "Real-drive track" under "What to do next".
+
+**Earlier the same day:** — **code changed**: `TwoStageDetector.get_road_mask()` now returns the
 lower-60 % geometric prior (not an all-road mask) when no segmentation model is loaded or segmentation
 raises, the centroid filter no longer requires `use_road_seg`, and `predict_videos.py` keeps the filtered
 path without `road_seg.pt`. Done so code, patent §6B.4 and patent Fig. 3 agree. Not run end-to-end on this
@@ -123,6 +128,22 @@ python integration/carla_replay.py carla_sim/out/run_<ts> --speed 3 --reset --lo
 ---
 
 ## What to do next, in order
+
+### 0. Real-drive track (started 2026-10-07) — runs in parallel with CARLA
+The user could not finish the CARLA validation on Windows, so a real-vehicle path was opened. Hardware:
+**Raspberry Pi 4 + MPU-6050 (Robocraze GY-521 3-pack; pins loose, one board to be soldered) + VK172 USB GPS dongle** for sensors, **Android phone + Sensor
+Logger** (`com.kelvin.sensorapp`) for video. The phone-only option was rejected as primary because phone IMUs
+often cannot reach the FSM's ~400 Hz expectation. **Full plan, bill of materials and status: [`16-field-rig.md`](16-field-rig.md).**
+1. **Done:** `field_rig/pi_recorder.py` — tested on a fake MPU/GPS (rate fit, levelling, overflow segments,
+   power-cut recovery, FSM fires on a synthetic pothole). **Not run on a real Pi.**
+2. **Waiting on the user:** order parts (listings checked 2026-10-07), get one sensor board soldered, say whether an SD card / USB-C power bank / car phone holder are already owned; a 10-second Sensor Logger test export, to learn its real file
+   format and achievable phone IMU rate.
+3. **Next code:** a merge script — align Pi `unix_time` with the phone video (GPS time gives a coarse
+   offset; cross-correlating the phone's own accelerometer against the MPU refines it), extract frames,
+   run the cascade. Write it against a REAL Sensor Logger export, not a guessed format.
+4. Ground truth is a passenger calling potholes on the video audio. Any accuracy figure from a field run
+   must say so (Rule 6).
+
 
 ### 1. Level B — carve real geometry  ⭐ the only way to test vision
 **Level B is WORKING as far as the sensor stage (2026-09-08).** Tiles are real cavities and the FSM fires

@@ -58,6 +58,19 @@ nothing requires it to. Consumers select columns by name, so extra columns break
 
 Any real-vehicle dataset must present **these exact column names** to work with the existing code unchanged.
 
+**`field_rig/out/<run>/sensors.csv` (added 2026-10-07)** is the first real-vehicle producer. It carries the
+contract columns first, then two extras, and differs from the synthetic file in ways a consumer must know:
+
+| Difference | Detail |
+|---|---|
+| Rate | **~500 Hz**, not 400 — MPU-6050 hardware limit with its low-pass filter on. Actual rate is measured per run (`run_meta.json` → `measured_rate_hz`). The FSM is timestamp-driven, so unaffected |
+| `timestamp` | Seconds on the Pi's monotonic clock from recorder start; may begin a few ms **negative** (samples buffered before the start mark). Same timebase as that run's `gnss.csv` |
+| `az` | Levelled: the first `calib_seconds` (default 3 s, car still) define "down", and all axes are rotated so gravity is `+az`. Gyro bias subtracted. `ax`/`ay` heading is arbitrary |
+| `speed` | GPS speed interpolated; **`0.0` where `gps_fix == 0`** — unknown, not stationary |
+| `label` | **Empty** (NaN on read). Ground truth comes from reviewing the phone video (Rule 6) |
+| `gps_fix` | Extra. `1` if a GPS fix lies within 3 s of the sample |
+| `unix_time` | Extra. True UTC epoch, from GPS satellite time when available, else the Pi's system clock (`run_meta.json` → `time_sync_source`). This is what joins the run to phone video |
+
 ---
 
 ## 2. `PotholeDetector.process_sample()` return

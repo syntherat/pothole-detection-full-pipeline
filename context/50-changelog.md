@@ -41,6 +41,96 @@ Rules for entries:
 
 ---
 
+## 2026-10-21 — Recorded the real-drive (phone + Pi) plan: new `16-field-rig.md`
+**Author:** Claude Code (Opus 5.5)
+**Scope:** context only; `field_rig/README.md` hardware list corrected
+
+**What changed**
+- New `context/16-field-rig.md`: why the field rig exists, phone-only vs Pi options and the decision,
+  Sensor Logger settings and its foreground-only video caveat, the full bill of materials (with the two
+  Amazon.in listings the user checked: Robocraze GY-521 3-pack ₹268, VK172 G-Mouse USB GPS ₹699),
+  soldering plan, sync and ground-truth plans, and a status checklist.
+- `field_rig/README.md`: "pins already soldered" was wrong for the chosen board, now says to get them
+  soldered. Added the USB extension cable.
+- `04-current-state.md`: same "pre-soldered" correction; points to `16`; lists the user's pending actions.
+- `README.md` (context index): added `16` to the subsystem table and the routing table. `02`: link to `16`.
+
+**Why**
+- User asked for the whole phone/real-drive discussion to be put in the context files.
+
+**Contracts affected**
+- None.
+
+**Context files updated**
+- `16-field-rig.md` (new), `README.md`, `04-current-state.md`, `02-repository-map.md`.
+
+**Verified**
+- Listing details (names, prices, 3-board pack, loose pins) were read from the user's screenshots on
+  2026-10-07. Prices will drift.
+- **Not verified:** the VK172 enumerates as `/dev/ttyACM0` at 9600 baud. Expected for u-blox 7 dongles;
+  `--check` will confirm.
+
+**Notes for the next agent**
+- The "phone spec discussed earlier" that the user referred to was never found. `16` is a
+  reconstruction; if the original surfaces, reconcile it.
+- The user is a hardware beginner; explain hardware steps plainly.
+
+---
+
+## 2026-10-07 — `field_rig/`: Raspberry Pi recorder for real drives
+**Author:** Claude Code (Opus 5.5)
+**Scope:** new folder `field_rig/`; no existing subsystem touched
+
+**What changed**
+- Added `field_rig/pi_recorder.py`: reads an MPU-6050 over I2C through its FIFO (500 Hz, DLPF 184 Hz,
+  +-8 g, +-500 deg/s, gyro-PLL clock) and NMEA from a USB GPS. Writes raw files while driving, then
+  derives `sensors.csv` in contract #1 columns plus `gps_fix`, `unix_time`. Modes: record, `--check`
+  (wiring/mounting/GPS test), `--finalize RUN_DIR` (rebuild from raw; needs only numpy).
+- Added `field_rig/README.md`, `requirements.txt`, `.gitignore` (`out/`).
+
+**Why**
+- User asked. The CARLA validation could not be completed on the Windows machine; a real-vehicle
+  path (issue #20) was chosen instead: Pi + MPU-6050 + USB GPS for sensors, phone (Sensor Logger) for video.
+
+**Design decisions a future agent should not undo blindly**
+- **500 Hz, not 400.** The MPU-6050 cannot produce 400 Hz with its low-pass filter on; filter-off 400 Hz
+  aliases vibration. `PotholeDetector` uses timestamps only (issue #17), so 500 Hz is safe for it.
+  The RandomForest was trained on 400 Hz synthetic samples; it is per-sample, so rate should not matter,
+  but that is unverified.
+- **Timestamps come from a per-segment line fit** of (read time, sample count), which measures the
+  chip's true rate (+-1-2 % off nominal is normal — tens of seconds over a long drive). A FIFO overflow
+  starts a new segment because the lost-sample count is unknowable.
+- **Levelling** rotates the still-period gravity vector onto +z, so az matches the FSM's assumption even
+  if the sensor is mounted tilted or upside down. `--no-level` disables it.
+- **`label` is written empty**, not 0 — nobody knows where the potholes were until the video is reviewed.
+- **`speed` = 0 where there is no GPS fix**, flagged by `gps_fix = 0`.
+
+**Contracts affected**
+- None changed. Contract #1 gained a new *producer*; its differences are documented in
+  `20-data-contracts.md` §1. Consumers select columns by name, so the extra columns break nothing.
+
+**Context files updated**
+- `02-repository-map.md` (new folder), `20-data-contracts.md` §1 (field-rig CSV differences),
+  `30-setup-and-run.md` (new "Field rig" section), `40-known-issues-and-gaps.md` #20 (recorder exists, no
+  data), `04-current-state.md` (new "Real-drive track").
+
+**Verified**
+- On this Mac (Python 3.14.7, numpy 2.5.3), against **fake** `smbus2` and `serial` modules in a scratch
+  directory, not committed: a chip running 1.2 % fast (506 Hz) was measured as 506.01 Hz; a 10 deg tilted
+  mount was measured at 10.0 deg and levelled to az 9.807 at rest; gyro bias removed to 0; a forced FIFO
+  overflow produced two segments with monotonic timestamps; a file cut mid-line (power cut) finalized
+  after skipping the partial line; `PotholeDetector` fired on the synthetic pothole in the output.
+- **Not verified:** anything on a real Pi, real MPU-6050 or real GPS; the I2C block-read path against a
+  real kernel driver; GPS time latency (assumed <0.5 s); whether 100 kHz I2C really overflows.
+
+**Notes for the next agent**
+- There is no merge/analysis step yet — see `04-current-state.md` "Real-drive track" item 3. Write it
+  against a real Sensor Logger export.
+- The fake-hardware test's overflow model does not empty the FIFO on reset (a real chip does), so its
+  post-overflow gap length was not a meaningful check.
+
+---
+
 ## 2026-10-07 — No-model / error road mask changed from "all road" to the lower-60 % geometric prior
 **Author:** Claude Opus 5.5 (Claude Code)
 **Scope:** vision (`pothole_detection_app/app/two_stage_detection.py`, `pothole_detection_app/scripts/predict_videos.py`)

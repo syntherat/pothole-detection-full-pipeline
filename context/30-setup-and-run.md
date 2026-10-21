@@ -287,6 +287,23 @@ wrong means wheel-over detection silently never fires.
 
 ---
 
+## Field rig (real drives, Raspberry Pi)
+
+**Never run on real hardware yet** (2026-10-07). Full instructions, wiring and drive procedure:
+`field_rig/README.md`. On the Pi (Raspberry Pi OS, I2C enabled, I2C bus at 400 kHz):
+```bash
+~/pave-venv/bin/pip install -r field_rig/requirements.txt
+~/pave-venv/bin/python field_rig/pi_recorder.py --check     # wiring + mounting + GPS
+~/pave-venv/bin/python field_rig/pi_recorder.py             # record until Ctrl+C
+```
+After a power cut, or on a laptop with only numpy:
+```bash
+python field_rig/pi_recorder.py --finalize field_rig/out/run_<ts>
+```
+There is **no merge step yet** — nothing joins a field run to the phone's video or feeds it to the cascade.
+
+---
+
 ## Map UI
 
 Create the config once:

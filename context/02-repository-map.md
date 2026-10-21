@@ -17,6 +17,7 @@ pothole-detection-full-pipeline/
 ├── context/                   [C] This knowledge base
 ├── docs/                      [G] Patent disclosure working files — see below
 ├── carla_sim/                 [C] CARLA testbed (Level A runs; Level B assets started)
+├── field_rig/                 [C] Raspberry Pi recorder for real drives (MPU-6050 + USB GPS). Never run on hardware
 ├── integration/               [C] Cascade orchestrator — the glue layer
 ├── pothole_detect_physics/    [C] Sensor / physics / classical-ML subsystem
 ├── pothole_detection_app/     [C] YOLO vision subsystem
@@ -77,6 +78,21 @@ successive `PAVE PATENT DOC-N.docx` revisions. `docs/` holds only the source mat
 
 Produces `sensors.csv` **column-identical to** `synthetic_pothole_dataset.csv`, which is what lets
 the whole existing pipeline consume it unchanged.
+
+---
+
+## `field_rig/` — real-drive recorder (Raspberry Pi)
+
+**Added 2026-10-07. Tested against simulated hardware only — never run on a real Pi.** Plan and hardware: [`16-field-rig.md`](16-field-rig.md). Records the
+sensor half of a real drive; a phone (Sensor Logger app) records the video separately.
+
+| File | | Purpose |
+|---|---|---|
+| `pi_recorder.py` | [C] | MPU-6050 over I2C (FIFO, 500 Hz) + NMEA GPS over USB serial. `--check` tests wiring/mounting; `--finalize RUN_DIR` rebuilds `sensors.csv` from the raw files |
+| `requirements.txt` | [C] | `smbus2`, `pyserial`, `numpy` — Pi-side only; `--finalize` needs just numpy |
+| `README.md` | [C] | Wiring, Pi setup, drive procedure, output format |
+| `.gitignore` | [C] | Excludes `out/` |
+| `out/` | [G] | Recorded runs: `imu_raw.csv`, `imu_clock.csv`, `gnss.csv`, `sensors.csv`, `run_meta.json` |
 
 ---
 
