@@ -41,6 +41,33 @@ Rules for entries:
 
 ---
 
+## 2026-11-02 — Field rig: Sensor Logger export format recorded
+**Author:** Claude Opus 5.5 (Claude Code)
+**Scope:** field rig (status/docs only)
+
+**What changed**
+- `16-field-rig.md` "Phone: app and settings": the pending note replaced with the measured format of a real
+  Sensor Logger export (files, columns, rates, clocks); checklist updated.
+
+**Why**
+- The merge script must be written against the real export, not a guessed format. User sent the 10 s test.
+
+**Contracts affected**
+- None yet. The merge script that will consume this does not exist.
+
+**Context files updated**
+- `16-field-rig.md`.
+
+**Verified**
+- Parsed the export locally: rates from timestamps, noise, JPG size. Sample file not added to the repo (it
+  holds the user's GPS position).
+
+**Notes for the next agent**
+- Camera produced ~1.8 fps JPG stills, not video. Check app settings before building frame extraction.
+- Columns are `z,y,x` order.
+
+---
+
 ## 2026-11-02 — Field rig: first real sensor check, startup-read fix
 **Author:** Claude Opus 5.5 (Claude Code)
 **Scope:** field rig (`field_rig/pi_recorder.py`, status)

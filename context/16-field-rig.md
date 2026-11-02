@@ -86,9 +86,45 @@ over SSH, and the SSH app is then left.
 
 The phone also serves as the **Wi-Fi hotspot** the Pi joins, so it can be controlled over SSH in the car.
 
-**Pending:** a 10-second still test export from the user's phone. It tells us (a) this phone's real IMU rate
-and (b) Sensor Logger's exact file and column names. The merge script must be written against that file,
-not a guessed format.
+**Test export received 2026-11-02** (Sensor Logger 1.68, Android, device `CPH2491`, ~12 s, phone flat on a
+table). Kept outside the repo; it contains the user's location. What it showed:
+
+| File | Columns | Measured rate |
+|---|---|---|
+| `TotalAcceleration.csv` | `time,seconds_elapsed,z,y,x` (m/s², **with** gravity) | 400 Hz |
+| `Accelerometer.csv` | same (gravity removed) | 200 Hz |
+| `AccelerometerUncalibrated.csv` | same | 400 Hz |
+| `Gyroscope.csv` / `GyroscopeUncalibrated.csv` | same (rad/s) | 400 Hz |
+| `Location.csv` | `time,seconds_elapsed,…,speed,…,longitude,latitude` | ~1 Hz |
+| `Camera/<epoch_ms>.jpg` | one still per file, **1280×720** | **~1.8 fps, not video** |
+| `Annotation.csv` | empty (no annotations taken) | — |
+| `Metadata.csv` | device, `recording epoch time` (ms), timezone, `sampleRateMs` | — |
+
+- `time` is **Unix epoch in nanoseconds**; JPG filenames are **Unix epoch in milliseconds**, same clock. So
+  phone IMU and frames need no alignment with each other — only phone ↔ Pi (see Synchronisation).
+- Column order is `z,y,x`, not `x,y,z`. Read by name.
+- Use `TotalAcceleration` (400 Hz, gravity kept) for cross-correlation with the MPU-6050, not
+  `Accelerometer` (200 Hz, gravity removed).
+- The phone itself reaches 400 Hz, the synthetic set's rate, so it could serve as a backup IMU.
+- **Camera captured stills, not video**, at ~0.57 s spacing. Video mode is a **paid** feature in Sensor
+  Logger (user checked 2026-11-02). Decision: first drive uses the free stills; upgrade only if they prove
+  too sparse. Stills are usable (frames are picked 0.5–2.0 s before an event, so 2–3 fall in the window),
+  and their epoch-ms filenames make the merge simpler than decoding video.
+- **Annotations are the ground-truth plan** (decided 2026-11-02, replaces passenger-says-pothole-aloud).
+  The passenger, never the driver, taps a saved preset as the car crosses each one. Presets, spelled exactly:
+  `pothole`, `speed_breaker`, `rough_road`. `pothole` → `label` 1.0; `speed_breaker` stays 0.0 but is kept
+  because it is the main false-positive to measure (contract §1 already treats breakers as 0.0). Taps lag
+  the real hit by up to ~1–2 s, so the merge script must match each tap to the strongest MPU spike in a
+  window *before* it, not at the tap time.
+- **`Annotation.csv` format** (seen 2026-11-02, 8 test taps): `time,seconds_elapsed,text,millisecond_press_duration`.
+  `text` is the preset name verbatim. ⚠ **`time` is NOT Unix epoch** like every other file: it is the phone's
+  boot clock (uptime) in ms ×10⁶ (e.g. `797028797000000` ≈ 9.2 days), and `seconds_elapsed` is garbage
+  (that value minus the epoch start, ≈ −1.79e9). Spacing between taps is correct.
+- **Recovering the offset:** each tap shows as a jolt in the phone's own `TotalAcceleration`. In the test, the
+  8 tap spacings matched 8 accel spikes to within ~20 ms, giving the boot→epoch offset exactly. The offset is
+  constant until the phone reboots, but do not rely on that. **Drive procedure:** with the car parked and the
+  phone in its holder, tap any preset 3 times ~2 s apart (a `sync` preset is fine) before driving. The merge
+  script fits the offset from those taps, then applies it to every later tap.
 
 ---
 
@@ -198,7 +234,7 @@ captured on the video's audio track, then reviewed. This is weaker than CARLA's 
 | Parts ordered / received | ✅ user said on 2026-11-02 they have all components (soldering state not confirmed) |
 | Sensor board soldered | ✅ 2026-11-02, **right-angle** header (board lies flat, wires leave sideways) |
 | SD / power / holder inventory answered | ⏳ |
-| 10 s Sensor Logger test export | ⏳ |
+| 10 s Sensor Logger test export | ✅ 2026-11-02, format recorded above; camera came out as stills |
 | Pi OS flashed, I2C on at 400 kHz, SSH over phone hotspot, `field_rig/` copied, `~/pave-venv` installed | ✅ 2026-11-02 |
 | USB GPS talking to the Pi | ✅ 2026-11-02 (no fix yet, indoors) |
 | First real `--check` on the Pi | ✅ 2026-11-02: sensor at 0x68 on I2C, GPS 10/10 NMEA; MOVING false alarm traced to a startup-read bug, fixed in `configure()`; **re-run passes** (`mounting looks right`, GPS ok) |
