@@ -41,6 +41,32 @@ Rules for entries:
 
 ---
 
+## 2026-11-02 — Field rig: parts received
+**Author:** Claude Opus 5.5 (Claude Code)
+**Scope:** field rig (status only)
+
+**What changed**
+- `16-field-rig.md` status checklist: parts marked received.
+- New **gitignored** `context/local-secrets.md` holds the Pi login (user asked to keep it but not commit it);
+  `.gitignore` gained that one path, and `16-field-rig.md` points to it.
+
+**Why**
+- User said they have all components and asked for a from-scratch install walkthrough. The walkthrough
+  was given in chat and follows `field_rig/README.md`; no code changed.
+
+**Contracts affected**
+- None.
+
+**Context files updated**
+- `16-field-rig.md`.
+
+**Verified**
+- On the real Pi (user ran it, output reviewed): Pi OS boots and joins the phone hotspot as `pave-pi.local`;
+  I2C enabled and 400 kHz line added; USB GPS sends NMEA on `/dev/ttyACM0` at 9600 (16 satellites heard
+  indoors, no fix). MPU-6050 not yet soldered, so `--check` not run.
+
+---
+
 ## 2026-10-21 — Recorded the real-drive (phone + Pi) plan: new `16-field-rig.md`
 **Author:** Claude Code (Opus 5.5)
 **Scope:** context only; `field_rig/README.md` hardware list corrected

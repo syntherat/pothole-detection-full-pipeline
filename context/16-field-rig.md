@@ -101,7 +101,7 @@ the user screenshotted and that was checked against the requirement.
 | Item | Listing / search term | Price | Notes |
 |---|---|---|---|
 | MPU-6050 | ✅ **Robocraze GY-521 MPU-6050 Module**, Amazon.in | ₹268 for **3 boards** (₹89.33 each) | **Pins come loose — needs soldering** (below). Two boards are spares |
-| USB GPS | ✅ **VK172 G-Mouse USB GPS Dongle (GPS/GLONASS)**, brand IDUINO, Amazon.in | ₹699 | u-blox 7 class. Appears as `/dev/ttyACM0` at 9600 baud, which are the recorder's defaults (assumed from the chip family; verify with `--check`) |
+| USB GPS | ✅ **VK172 G-Mouse USB GPS Dongle (GPS/GLONASS)**, brand IDUINO, Amazon.in | ₹699 | u-blox 7 class. Appears as `/dev/ttyACM0` at 9600 baud, which are the recorder's defaults (**verified on the real Pi 2026-11-02**: NMEA arrives on `/dev/ttyACM0` at 9600; it also emits harmless `$GPTXT ... NMEA unknown msg` lines, and ModemManager is not installed) |
 | USB extension cable | `USB extension cable 1.5m male to female` | ~₹100–200 | The Pi sits low by the sensor, but the GPS needs sky view on the dashboard |
 | Jumper wires | `female to female jumper wires 20cm` | ~₹60–100 | 4 needed; packs are 40 |
 | Mounting tape | `3M VHB double sided foam tape` | ~₹100–200 | Holds the sensor rigidly to the car body |
@@ -144,6 +144,9 @@ pin wiggles.
 ---
 
 ## Wiring, mounting, setup, drive procedure
+
+Pi login (username/password) is in [`local-secrets.md`](local-secrets.md), which is **gitignored** and exists
+only on the machine where it was written. Never copy the values into a tracked file.
 
 Kept in one place to avoid drift: **[`field_rig/README.md`](../field_rig/README.md)**. In short:
 - **Wiring:** VCC→pin 1 (3.3 V, **never** pin 2 = 5 V), GND→6, SDA→3, SCL→5, with female-female jumpers.
@@ -189,10 +192,12 @@ captured on the video's audio track, then reviewed. This is weaker than CARLA's 
 |---|---|
 | Recorder `field_rig/pi_recorder.py` | ✅ written, tested on fake hardware only |
 | Parts chosen | ✅ MPU-6050 and GPS listings checked |
-| Parts ordered / received | ⏳ unknown, waiting on the user |
+| Parts ordered / received | ✅ user said on 2026-11-02 they have all components (soldering state not confirmed) |
 | Sensor board soldered | ⏳ |
 | SD / power / holder inventory answered | ⏳ |
 | 10 s Sensor Logger test export | ⏳ |
-| First real `--check` on the Pi | ⏳ |
+| Pi OS flashed, I2C on at 400 kHz, SSH over phone hotspot, `field_rig/` copied, `~/pave-venv` installed | ✅ 2026-11-02 |
+| USB GPS talking to the Pi | ✅ 2026-11-02 (no fix yet, indoors) |
+| First real `--check` on the Pi | ⏳ needs the soldered sensor |
 | Merge script (Pi + phone → frames → cascade) | ❌ not started, waiting on the real export |
 | First real drive | ❌ |

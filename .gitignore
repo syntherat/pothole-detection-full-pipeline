@@ -33,3 +33,6 @@ pothole_map_ui/config.js
 
 docs
 new figures/
+
+# Local-only secrets (Pi login etc.) -- never commit
+context/local-secrets.md
