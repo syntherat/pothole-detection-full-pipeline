@@ -150,6 +150,9 @@ only on the machine where it was written. Never copy the values into a tracked f
 
 Kept in one place to avoid drift: **[`field_rig/README.md`](../field_rig/README.md)**. In short:
 - **Wiring:** VCC→pin 1 (3.3 V, **never** pin 2 = 5 V), GND→6, SDA→3, SCL→5, with female-female jumpers.
+  **On the user's Pi, GND goes to pin 9**: pins 4 and 6 power the case fan. Any GND pin works.
+- **The user's board is a clone:** `WHO_AM_I = 0x70` (likely an MPU-6500 sold as MPU-6050). Accel, gyro and
+  FIFO registers used by the recorder behave the same; gravity read 9.75 m/s² still, noise well under limits.
   `i2cdetect -y 1` should show `68`.
 - **Mounting:** sensor flat, chip up, VHB-taped to the car floor or centre console, never a seat. GPS on
   the dashboard via the extension cable.
@@ -193,11 +196,11 @@ captured on the video's audio track, then reviewed. This is weaker than CARLA's 
 | Recorder `field_rig/pi_recorder.py` | ✅ written, tested on fake hardware only |
 | Parts chosen | ✅ MPU-6050 and GPS listings checked |
 | Parts ordered / received | ✅ user said on 2026-11-02 they have all components (soldering state not confirmed) |
-| Sensor board soldered | ⏳ |
+| Sensor board soldered | ✅ 2026-11-02, **right-angle** header (board lies flat, wires leave sideways) |
 | SD / power / holder inventory answered | ⏳ |
 | 10 s Sensor Logger test export | ⏳ |
 | Pi OS flashed, I2C on at 400 kHz, SSH over phone hotspot, `field_rig/` copied, `~/pave-venv` installed | ✅ 2026-11-02 |
 | USB GPS talking to the Pi | ✅ 2026-11-02 (no fix yet, indoors) |
-| First real `--check` on the Pi | ⏳ needs the soldered sensor |
+| First real `--check` on the Pi | ✅ 2026-11-02: sensor at 0x68 on I2C, GPS 10/10 NMEA; MOVING false alarm traced to a startup-read bug, fixed in `configure()`; **re-run passes** (`mounting looks right`, GPS ok) |
 | Merge script (Pi + phone → frames → cascade) | ❌ not started, waiting on the real export |
 | First real drive | ❌ |

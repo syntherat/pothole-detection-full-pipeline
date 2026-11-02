@@ -41,6 +41,38 @@ Rules for entries:
 
 ---
 
+## 2026-11-02 — Field rig: first real sensor check, startup-read fix
+**Author:** Claude Opus 5.5 (Claude Code)
+**Scope:** field rig (`field_rig/pi_recorder.py`, status)
+
+**What changed**
+- `Mpu6050.configure()` now sleeps 0.2 s after writing the config registers, before resetting/enabling the FIFO.
+
+**Why**
+- First real `--check` on the user's Pi reported "sensor was MOVING" with the board still. A diagnostic read of
+  600 samples showed only row 0 was bad: gyro exactly 0 and accel at the old ±2 g scale (az = 37.7 m/s²).
+  That single row gave accel_std 1.16 (limit 0.3); without the first 150 rows it was 0.073 / gyro 0.0074.
+- The same glitch would have reached `record()`: the FIFO started filling immediately, so the junk sample would
+  enter calibration (levelling + MOVING verdict) and the head of `imu_raw.csv`.
+
+**Contracts affected**
+- None.
+
+**Context files updated**
+- `16-field-rig.md`: checklist (soldered, first check), GND on pin 9 for this Pi (fan on 4/6), clone chip note.
+
+**Verified**
+- On the real Pi (user ran it, output reviewed): `i2cdetect` shows 0x68; WHO_AM_I = 0x70; |g| = 9.75; GPS 10/10
+  valid NMEA on `/dev/ttyACM0`. The diagnosis above.
+- The fix itself: re-run of `--check` on the Pi after copying the file: `[ok] mounting looks right`, |g| = 9.71,
+  tilt 15°, GPS 10/10 NMEA.
+
+**Notes for the next agent**
+- The first MOVING warning that day was genuine (board was loose); the second was this bug.
+- Tilt read 11–15° on a table; under the 30° limit, levelling handles it.
+
+---
+
 ## 2026-11-02 — Field rig: parts received
 **Author:** Claude Opus 5.5 (Claude Code)
 **Scope:** field rig (status only)

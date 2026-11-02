@@ -120,6 +120,11 @@ class Mpu6050:
         w(self.addr, GYRO_CONFIG, GYRO_CONFIG_VAL)
         w(self.addr, ACCEL_CONFIG, ACCEL_CONFIG_VAL)
         w(self.addr, FIFO_EN, 0x78)             # accel + gyro xyz
+        # Let the gyro start and the new ranges take effect before anything is read.
+        # Seen on the real board (2026-11-02): the first read straight after this
+        # came back with gyro = 0 and accel at the old +-2 g scale (az = 37.7 m/s^2),
+        # which alone pushed the still sensor over the MOVING threshold.
+        time.sleep(0.2)
         self.reset_fifo()
 
     def reset_fifo(self) -> None:
